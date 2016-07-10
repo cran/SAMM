@@ -3354,7 +3354,7 @@ List simplex_reml(arma::vec start,int npar, double scale,const arma::vec  &y,int
   }
   vvec=(v.row(vs)).t();
   
-  if (sum(vvec)<=0 || isnan(vvec(0))){
+  if (sum(vvec)<=0 || ISNAN(vvec(0))){
     vvec=ones(k)/k;}
   minval =minimfunctionouter_reml(vvec,y,
                                   k,dimvec,dimen,q,
@@ -3969,7 +3969,7 @@ List simplex_ml(arma::vec start,int npar, double scale,const arma::vec  &y,int  
   }
   vvec=(v.row(vs)).t();
   
-  if (sum(vvec)<=0 || isnan(vvec(0))){
+  if (sum(vvec)<=0 || ISNAN(vvec(0))){
     vvec=ones(k)/k;}
   minval =minimfunctionouter_ml(vvec,y,
                                 k,dimvec,dimen,q,

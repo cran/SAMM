@@ -1,11 +1,11 @@
-418ca13b3b56d39051efb9f1412ba638 *DESCRIPTION
+3383f623c4e51ecde85803871f8c1d81 *DESCRIPTION
 d8c56ad892c01bb7270db9aa838cbc4b *NAMESPACE
 018e2757fbeb2888d8d1e4e0a15e9a89 *R/RcppExports.R
-931881ae18453417237543676a265dbc *build/partial.rdb
+3b13e0375cbd3e7d0c4297abc0352a60 *build/partial.rdb
 7f4853761996ffb69409fe3f0350388f *man/SAMM-package.Rd
 dda369d288cbf5778ed85a6c7921c19e *man/SAMM.Rd
 948182a6c8b76971846234ed59863fc2 *man/sigcovfuncs_cppforR.Rd
 2a6f9e9e044a78154d3cfda5936d6f48 *src/Makevars
 8d46d69896a1f1d31ed76035a0e49d67 *src/Makevars.win
 38ac0cedef45b8dc3aaaf7dfc6b4f253 *src/RcppExports.cpp
-39328ec054f31d878bd843593d86b7a1 *src/SAMM.cpp
+c2b81bf252e4b11a8cdeaf48feb80cca *src/SAMM.cpp
