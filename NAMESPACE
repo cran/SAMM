@@ -1,4 +1,3 @@
-useDynLib(SAMM)
-import(Rcpp)
+useDynLib(SAMM, .registration=TRUE)
 importFrom(Rcpp, evalCpp)
 exportPattern("^[[:alpha:]]+")

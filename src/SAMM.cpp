@@ -1,13 +1,12 @@
 
 #include <RcppArmadillo.h>
 #include <cmath>
-
+#include <gsl/gsl_min.h>
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
-using namespace arma; 
+using namespace arma;
 using namespace Rcpp;
-using namespace std;
 const double log2pi = std::log(2.0 * M_PI);
 #define FALSE  0
 #define TRUE   1
@@ -19,18 +18,21 @@ const double GAMMA    =   2;       /* expansion coefficient */
 
 // [[Rcpp::depends("RcppArmadillo")]]
 
-arma::mat nearPD(const arma::mat & x, const double & epsilon){
-  if( (rcond(x)<epsilon )||(rcond(x)>1/epsilon )){
+arma::mat nearPD(const arma::mat & x, const double & epsilon) {
+  if( (rcond(x)<epsilon )||(rcond(x)>1/epsilon )) {
     arma::mat Eigenvecs;
     arma::vec Eigenval;
     arma::eig_sym(Eigenval , Eigenvecs ,x+log10(x.n_cols)*eye(x.n_cols,x.n_cols));
     Eigenval=Eigenval-log10(x.n_cols);
     arma::mat xnew=x;
-    for (int i = 0; i < Eigenval.n_elem; i++){
-      if (Eigenval(i)<=0){Eigenval(i)=epsilon;}
+    for (int i = 0; i < Eigenval.n_elem; i++) {
+      if (Eigenval(i)<=0) {
+        Eigenval(i)=epsilon;
+      }
     }
     xnew=Eigenvecs*diagmat(Eigenval)*Eigenvecs.t();
-    return xnew;}
+    return xnew;
+  }
   else {
     return x;
   }
@@ -40,14 +42,14 @@ arma::mat nearPD(const arma::mat & x, const double & epsilon){
 
 // [[Rcpp::depends("RcppArmadillo")]]
 
-arma::mat inv_sympdsamm(const arma::mat & x, const double & epsilon){
+arma::mat inv_sympdsamm(const arma::mat & x, const double & epsilon) {
   double epsilon0=epsilon;
   bool invsuccess=false;
   arma::mat xinv;
   int counteri=0;
   do {
-    try{
-      if (counteri==0){
+    try {
+      if (counteri==0) {
         counteri=counteri+1;
         xinv=inv_sympd(x+epsilon0*eye(x.n_cols,x.n_cols));
         invsuccess=true;
@@ -57,7 +59,7 @@ arma::mat inv_sympdsamm(const arma::mat & x, const double & epsilon){
         invsuccess=true;
       }
     }
-    catch(...) { 
+    catch(...) {
       epsilon0=1.05*epsilon0;
       //Rcpp::Rcout  <<  epsilon0 << std::endl;
       invsuccess=false;
@@ -65,22 +67,26 @@ arma::mat inv_sympdsamm(const arma::mat & x, const double & epsilon){
     }
   } while (!invsuccess &&  counteri<100);
   
-  if (!invsuccess){xinv=diagmat(1/diagvec(x+epsilon));}
+  if (!invsuccess) {
+    xinv=diagmat(1/diagvec(x+epsilon));
+  }
   return xinv;
 }
 
 
 // [[Rcpp::depends("RcppArmadillo")]]
 
-arma::mat cholsammlower(const arma::mat & x, const double & epsilon){
+arma::mat cholsammlower(const arma::mat & x, const double & epsilon) {
   arma::mat xchol=diagmat(pow(diagvec(x+epsilon),.5));
-  try{
+  try {
     chol(xchol,x,"lower");
   }
   catch(...) {
-    try{chol(xchol,x+epsilon*eye(x.n_cols,x.n_cols),"lower");
+    try {
+      chol(xchol,x+epsilon*eye(x.n_cols,x.n_cols),"lower");
     }
-    catch(...) {xchol=diagmat(pow(diagvec(x+epsilon),.5));
+    catch(...) {
+      xchol=diagmat(pow(diagvec(x+epsilon),.5));
     }
   }
   return xchol;
@@ -89,16 +95,18 @@ arma::mat cholsammlower(const arma::mat & x, const double & epsilon){
 
 // [[Rcpp::depends("RcppArmadillo")]]
 
-arma::mat cholsammupper(const arma::mat & x, const double & epsilon){
+arma::mat cholsammupper(const arma::mat & x, const double & epsilon) {
   arma::mat xchol=diagmat(pow(diagvec(x+epsilon),.5));
-  try{
+  try {
     chol(xchol,x,"upper");
     
   }
   catch(...) {
-    try{chol(xchol,x+epsilon*eye(x.n_cols,x.n_cols),"upper");
+    try {
+      chol(xchol,x+epsilon*eye(x.n_cols,x.n_cols),"upper");
     }
-    catch(...) {xchol=diagmat(pow(diagvec(x+epsilon),.5));
+    catch(...) {
+      xchol=diagmat(pow(diagvec(x+epsilon),.5));
     }
   }
   return xchol;
@@ -116,8 +124,12 @@ arma::vec Mahalanobis(const arma::mat & x, const arma::vec & center, const arma:
   for (int i=0; i < n; i++) {
     x_cen.col(i) = x.col(i) - center;
   }
-  if (covinv) {return sum((x_cen.t() * cov) % x_cen.t(), 1);}  
-  else {return sum((x_cen.t() * inv_sympdsamm(cov,1e-10)) % x_cen.t(), 1);}
+  if (covinv) {
+    return sum((x_cen.t() * cov) % x_cen.t(), 1);
+  }
+  else {
+    return sum((x_cen.t() * inv_sympdsamm(cov,1e-10)) % x_cen.t(), 1);
+  }
 }
 
 
@@ -126,44 +138,48 @@ arma::vec Mahalanobis(const arma::mat & x, const arma::vec & center, const arma:
 
 // [[Rcpp::depends("RcppArmadillo")]]
 
-double dmvnorm_arma2(const arma::mat & x, const arma::vec & mean, const arma::mat & sigma, bool logd = false, bool covinv=false) { 
+double dmvnorm_arma2(const arma::mat & x, const arma::vec & mean, const arma::mat & sigma, bool logd = false, bool covinv=false) {
   
   double offset = log10(sigma.n_cols);
   double logdet;
   arma::mat sigmaandoffset = sigma + offset * eye(sigma.n_cols,sigma.n_cols);
   arma::vec distval = Mahalanobis(x,  mean, sigma, covinv);
   arma::vec eigvals=arma::eig_sym(sigmaandoffset)-offset;
-  if (covinv){logdet = sum(arma::log(1/eigvals));}
-  else {logdet = sum(arma::log(eigvals));}
+  if (covinv) {
+    logdet = sum(arma::log(1/eigvals));
+  }
+  else {
+    logdet = sum(arma::log(eigvals));
+  }
   arma::vec logretval = -( (x.n_rows * log2pi + logdet + distval)/2  ) ;
   
-  if (logd) { 
+  if (logd) {
     return(as_scalar(logretval));
-  } else { 
+  } else {
     return(exp(as_scalar(logretval)));
   }
 }
 
 
 
-double dmvnorm_arma(const arma::mat & x, const arma::vec & mean, const arma::mat & sigma, bool logd = false, bool covinv=false) { 
+double dmvnorm_arma(const arma::mat & x, const arma::vec & mean, const arma::mat & sigma, bool logd = false, bool covinv=false) {
   double out;
   
-  if (!covinv){
+  if (!covinv) {
     int xdim = x.n_rows;
     arma::mat rooti(xdim,xdim);
-    if (covinv){
+    if (covinv) {
       rooti = trimatu(cholsammlower(sigma, 1e-10));
     }
-    else{
+    else {
       rooti = arma::inv(trimatu(cholsammlower(sigma, 1e-10)));
     }
     double rootisum = arma::sum(log(rooti.diag()));
     double constants = -(static_cast<double>(xdim)/2.0) * log2pi;
     
     
-    arma::vec z = rooti * (x - mean) ;    
-    out = constants - 0.5 * arma::sum(z%z) + rootisum;     
+    arma::vec z = rooti * (x - mean) ;
+    out = constants - 0.5 * arma::sum(z%z) + rootisum;
     
     
     if (logd == false) {
@@ -185,11 +201,11 @@ double dmvnorm_arma(const arma::mat & x, const arma::vec & mean, const arma::mat
 // [[Rcpp::depends("RcppArmadillo")]]
 
 arma::mat disteucarma(arma::mat Ar, arma::mat Br) {
-  int m = Ar.n_rows, 
+  int m = Ar.n_rows,
     n = Br.n_rows,
     k = Ar.n_cols;
-  arma::mat A = arma::mat(Ar.begin(), m, k, false); 
-  arma::mat B = arma::mat(Br.begin(), n, k, false); 
+  arma::mat A = arma::mat(Ar.begin(), m, k, false);
+  arma::mat B = arma::mat(Br.begin(), n, k, false);
   
   arma::colvec An =  sum(square(A),1);
   arma::colvec Bn =  sum(square(B),1);
@@ -198,11 +214,11 @@ arma::mat disteucarma(arma::mat Ar, arma::mat Br) {
   C.each_col() += An;
   C.each_row() += Bn.t();
   
-  return sqrt(C); 
+  return sqrt(C);
 }
 
 // [[Rcpp::depends("RcppArmadillo")]]
-arma::mat ar1cov_cpp(const arma::vec & params, const arma::mat  & data){
+arma::mat ar1cov_cpp(const arma::vec & params, const arma::mat  & data) {
   arma::vec times =linspace(1,data(0,0),data(0,0));
   double rho = (2/M_PI)*atan(params(0));
   arma::mat H = disteucarma(times, times);
@@ -216,7 +232,7 @@ arma::mat ar1cov_cpp(const arma::vec & params, const arma::mat  & data){
 }
 
 // [[Rcpp::depends("RcppArmadillo")]]
-arma::mat ar1hetcov_cpp(const arma::vec & params, const arma::mat  & data){
+arma::mat ar1hetcov_cpp(const arma::vec & params, const arma::mat  & data) {
   arma::vec times =linspace(1,data(0,0),data(0,0));
   double rho = (2/M_PI)*atan(params(0));
   arma::mat H = disteucarma(times, times);
@@ -238,7 +254,7 @@ arma::mat ar1hetcov_cpp(const arma::vec & params, const arma::mat  & data){
 
 
 // [[Rcpp::depends("RcppArmadillo")]]
-arma::mat arma11cov_cpp(const arma::vec & params, const arma::mat  & data){
+arma::mat arma11cov_cpp(const arma::vec & params, const arma::mat  & data) {
   arma::vec times =linspace(1,data(0,0),data(0,0));
   double rho =(2/M_PI)*atan(params(0));
   double lambda =(2/M_PI)*atan(params(1));
@@ -248,9 +264,15 @@ arma::mat arma11cov_cpp(const arma::vec & params, const arma::mat  & data){
   arma::mat V(data(0,0),data(0,0));
   for (int i = 0; i < data(0,0); i++) {
     for (int j = 0; j < data(0,0); j++) {
-      if (abs(i-j)>1){
+      if (abs(i-j)>1) {
         V(i,j)=lambda*powf(rho,H(i,j));
-      } else {if (i==j){V(i,j)=1;}else{V(i,j)=lambda;}}
+      } else {
+        if (i==j) {
+          V(i,j)=1;
+        } else {
+          V(i,j)=lambda;
+        }
+      }
     }
   }
   return V;
@@ -258,7 +280,7 @@ arma::mat arma11cov_cpp(const arma::vec & params, const arma::mat  & data){
 
 // [[Rcpp::depends("RcppArmadillo")]]
 
-arma::mat compsymmcov_cpp(const arma::vec & params, const arma::mat  & data){
+arma::mat compsymmcov_cpp(const arma::vec & params, const arma::mat  & data) {
   double rho = (2/M_PI)*atan(params(0));
   int dim =data(0,0);
   arma::mat V=rho*ones(dim,dim);
@@ -270,7 +292,7 @@ arma::mat compsymmcov_cpp(const arma::vec & params, const arma::mat  & data){
 
 // [[Rcpp::depends("RcppArmadillo")]]
 
-arma::mat compsymmhetcov_cpp(const arma::vec & params, const arma::mat  & data){
+arma::mat compsymmhetcov_cpp(const arma::vec & params, const arma::mat  & data) {
   double rho = (2/M_PI)*atan(params(0));
   int dim =data(0,0);
   arma::mat V=rho*ones(dim,dim);
@@ -290,7 +312,7 @@ arma::mat compsymmhetcov_cpp(const arma::vec & params, const arma::mat  & data){
 
 // [[Rcpp::depends("RcppArmadillo")]]
 
-arma::mat lincombcov_cpp(const arma::vec & params, const arma::mat  & data){
+arma::mat lincombcov_cpp(const arma::vec & params, const arma::mat  & data) {
   int k=params.n_elem;
   arma::vec weights=params-min(params);
   weights=weights/sum(weights);
@@ -305,15 +327,17 @@ arma::mat lincombcov_cpp(const arma::vec & params, const arma::mat  & data){
 
 // [[Rcpp::depends("RcppArmadillo")]]
 
-arma::mat unstrcov_cpp(const arma::vec & params, const arma::mat  & data){
+arma::mat unstrcov_cpp(const arma::vec & params, const arma::mat  & data) {
   int d1=data(0,0);
   arma::mat D1(d1,d1);
   
   int ii=0;
   for (int i = 0; i < d1; i++) {
     for (int j = i; j < d1; j++) {
-      if (i==j){D1(i,j)=1;}
-      else{
+      if (i==j) {
+        D1(i,j)=1;
+      }
+      else {
         D1(i,j)=(2/M_PI)*atan(params(ii));
         D1(j,i)=(2/M_PI)*atan(params(ii));
         ii=ii+1;
@@ -339,7 +363,7 @@ arma::mat unstrcov_cpp(const arma::vec & params, const arma::mat  & data){
 arma::mat diagcov_cpp(const arma::vec & params, const arma::mat & data) {
   int k=params.n_elem;
   arma::vec v=ones(k+1);
-  for (int i = 1; i < (k+1); ++i){
+  for (int i = 1; i < (k+1); ++i) {
     v(i)=exp(params(i-1));
   }
   arma::mat V=diagmat(v);
@@ -357,8 +381,10 @@ arma::mat unstrKronKcov_cpp(const arma::vec & params, const arma::mat & data) {
   int ii=0;
   for (int i = 0; i < d1; i++) {
     for (int j = i; j < d1; j++) {
-      if (i==j){D1(i,j)=1;}
-      else{
+      if (i==j) {
+        D1(i,j)=1;
+      }
+      else {
         D1(i,j)=(2/M_PI)*atan(params(ii));
         D1(j,i)=(2/M_PI)*atan(params(ii));
         ii=ii+1;
@@ -459,8 +485,10 @@ arma::mat UnstrKronUnstrcov_cpp(const arma::vec & params, const arma::mat & data
   int ii=0;
   for (int i = 0; i < d1; i++) {
     for (int j = i; j < d1; j++) {
-      if (i==j){D1(i,j)=1;}
-      else{
+      if (i==j) {
+        D1(i,j)=1;
+      }
+      else {
         D1(i,j)=(2/M_PI)*atan(params(ii));
         D1(j,i)=(2/M_PI)*atan(params(ii));
         ii=ii+1;
@@ -479,8 +507,10 @@ arma::mat UnstrKronUnstrcov_cpp(const arma::vec & params, const arma::mat & data
   
   for (int i = 0; i < d2; i++) {
     for (int j = i; j < d2; j++) {
-      if (i==j){D2(i,j)=1;}
-      else{
+      if (i==j) {
+        D2(i,j)=1;
+      }
+      else {
         D2(i,j)=(2/M_PI)*atan(params(ii));
         D2(j,i)=(2/M_PI)*atan(params(ii));
         ii=ii+1;
@@ -506,7 +536,7 @@ arma::mat UnstrKronUnstrcov_cpp(const arma::vec & params, const arma::mat & data
 
 arma::mat rbfcov_cpp(const arma::vec & params, const arma::mat & data) {
   arma::mat C=disteucarma(data,data);
-  return exp(-exp(params(0))*pow(C, 2)); 
+  return exp(-exp(params(0))*pow(C, 2));
 }
 
 
@@ -514,21 +544,21 @@ arma::mat rbfcov_cpp(const arma::vec & params, const arma::mat & data) {
 
 arma::mat expcov_cpp(const arma::vec & params, const arma::mat & data) {
   arma::mat C=disteucarma(data,data);
-  return exp(-(exp(params(0)))*C); 
+  return exp(-(exp(params(0)))*C);
 }
 
 
 // [[Rcpp::depends("RcppArmadillo")]]
 
 arma::mat rbfdistcov_cpp(const arma::vec & params, const arma::mat & data) {
-  return exp(-exp(params(0))*pow(data, 2)); 
+  return exp(-exp(params(0))*pow(data, 2));
 }
 
 
 // [[Rcpp::depends("RcppArmadillo")]]
 
 arma::mat expdistcov_cpp(const arma::vec & params, const arma::mat & data) {
-  return exp(-(exp(params(0)))*data); 
+  return exp(-(exp(params(0)))*data);
 }
 
 
@@ -537,7 +567,7 @@ arma::mat expdistcov_cpp(const arma::vec & params, const arma::mat & data) {
 arma::mat relmatcov_cpp(const arma::vec & params, const arma::mat & data) {
   arma::vec pks(data.n_cols);
   double c=0;
-  for (int iter = 0; iter < data.n_cols; ++iter){
+  for (int iter = 0; iter < data.n_cols; ++iter) {
     pks(iter)=sum(data.col(iter)+ones(data.n_rows))/(2*data.n_rows);
     c=c+2*pks(iter)*(1-pks(iter));
   }
@@ -562,8 +592,10 @@ arma::mat KKronunstrcov_cpp(const arma::vec & params, const arma::mat & data) {
   int ii=0;
   for (int i = 0; i < d1; i++) {
     for (int j = i; j < d1; j++) {
-      if (i==j){D1(i,j)=1;}
-      else{
+      if (i==j) {
+        D1(i,j)=1;
+      }
+      else {
         D1(i,j)=(2/M_PI)*atan(params(ii));
         D1(j,i)=(2/M_PI)*atan(params(ii));
         ii=ii+1;
@@ -661,7 +693,7 @@ arma::mat sppowcov_cpp(const arma::vec & params, const arma::mat & data) {
       V(i,j)=pow(rho, data(i,j));
     }
   }
-  return V; 
+  return V;
 }
 
 
@@ -672,12 +704,14 @@ arma::mat splincov_cpp(const arma::vec & params, const arma::mat & data) {
   arma::mat V(data.n_cols,data.n_cols);
   for (int i = 0; i < data.n_cols; i++) {
     for (int j = 0; j < data.n_cols; j++) {
-      if (rho*data(i,j)<=1){
+      if (rho*data(i,j)<=1) {
         V(i,j)=(1-rho*data(i,j));
-      } else {V(i,j)=0;}
+      } else {
+        V(i,j)=0;
+      }
     }
   }
-  return V; 
+  return V;
 }
 
 // [[Rcpp::depends("RcppArmadillo")]]
@@ -687,12 +721,14 @@ arma::mat splinlogcov_cpp(const arma::vec & params, const arma::mat & data) {
   arma::mat V(data.n_cols,data.n_cols);
   for (int i = 0; i < data.n_cols; i++) {
     for (int j = 0; j < data.n_cols; j++) {
-      if (log(rho*data(i,j))<=1){
+      if (log(rho*data(i,j))<=1) {
         V(i,j)=(1-rho*log(data(i,j)));
-      } else {V(i,j)=0;}
+      } else {
+        V(i,j)=0;
+      }
     }
   }
-  return V; 
+  return V;
 }
 
 
@@ -772,7 +808,7 @@ XPtr<funcPtr> putFunPtrInXPtr(std::string fstr) {
 
 
 
-arma::mat callViaString(const arma::vec params, const arma::mat data, std::string funname){
+arma::mat callViaString(const arma::vec params, const arma::mat data, std::string funname) {
   XPtr<funcPtr> xpfun = putFunPtrInXPtr(funname);
   funcPtr fun = *xpfun;
   arma::mat y = fun(params, data);
@@ -785,7 +821,7 @@ arma::mat callViaString(const arma::vec params, const arma::mat data, std::strin
 
 // [[Rcpp::depends("RcppArmadillo")]]
 
-arma::mat symMroot(const arma::mat & M){
+arma::mat symMroot(const arma::mat & M) {
   vec eigval;
   mat eigvec;
   
@@ -793,13 +829,17 @@ arma::mat symMroot(const arma::mat & M){
   eigval=eigval-1;
   
   for (int i=0; i<eigval.size(); i++) {
-    if(eigval(i)<1e-8){eigval(i)=1e-8;}
+    if(eigval(i)<1e-8) {
+      eigval(i)=1e-8;
+    }
   }
   return eigvec*diagmat(sqrt(eigval))*eigvec.t();
 }
 
 
 // [[Rcpp::depends("RcppArmadillo")]]
+// [[Rcpp::export]]
+
 arma::vec loglikfuncmmmkmv(const arma::mat & Y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const Rcpp::List & sigmahatlist,const arma::mat & B,const arma::mat & W,const arma::mat & R ) {
   int k=Zlist.size();
   arma::mat V=kron(W*R*W.t(),Rcpp::as<arma::mat>(sigmahatlist(k)));
@@ -816,7 +856,7 @@ arma::vec loglikfuncmmmkmv(const arma::mat & Y,const arma::mat & X,const Rcpp::L
     V=V+kron(ZKZt,Vgt);
   }
   loglik=dmvnorm_arma(arma::vectorise(Y),arma::vectorise(X*B),V,true, false);
-  return loglik; 
+  return loglik;
 }
 
 
@@ -850,8 +890,10 @@ arma::mat UnstrKronIdentSig_cpp(const arma::vec & params, const arma::mat & data
   int ii=0;
   for (int i = 0; i < d1; i++) {
     for (int j = i; j < d1; j++) {
-      if (i==j){D1(i,j)=1;}
-      else{
+      if (i==j) {
+        D1(i,j)=1;
+      }
+      else {
         D1(i,j)=(2/M_PI)*atan(params(ii));
         D1(j,i)=(2/M_PI)*atan(params(ii));
         ii=ii+1;
@@ -879,8 +921,10 @@ arma::mat IdentKronUnstrSig_cpp(const arma::vec & params, const arma::mat & data
   int ii=0;
   for (int i = 0; i < d2; i++) {
     for (int j = i; j < d2; j++) {
-      if (i==j){D2(i,j)=1;}
-      else{
+      if (i==j) {
+        D2(i,j)=1;
+      }
+      else {
         D2(i,j)=(2/M_PI)*atan(params(ii));
         D2(j,i)=(2/M_PI)*atan(params(ii));
         ii=ii+1;
@@ -926,7 +970,7 @@ arma::mat FA1homSig_cpp(const arma::vec & params, const arma::mat & data) {
 
 // [[Rcpp::depends("RcppArmadillo")]]
 
-arma::mat compsymmhomSig_cpp(const arma::vec & params, const arma::mat  & data){
+arma::mat compsymmhomSig_cpp(const arma::vec & params, const arma::mat  & data) {
   double sigma = exp(params(0));
   double rho = (2/M_PI)*atan(params(1));
   int dim =as_scalar(data);
@@ -940,7 +984,7 @@ arma::mat compsymmhomSig_cpp(const arma::vec & params, const arma::mat  & data){
 
 // [[Rcpp::depends("RcppArmadillo")]]
 
-arma::mat compsymmhetSig_cpp(const arma::vec & params, const arma::mat  & data){
+arma::mat compsymmhetSig_cpp(const arma::vec & params, const arma::mat  & data) {
   double rho = (2/M_PI)*atan(params(0));
   int dim =as_scalar(data);
   arma::mat V=rho*ones(dim,dim);
@@ -954,7 +998,7 @@ arma::mat compsymmhetSig_cpp(const arma::vec & params, const arma::mat  & data){
 
 // [[Rcpp::depends("RcppArmadillo")]]
 
-arma::mat FAhetSig_cpp(const arma::vec & params, const arma::mat  & data){
+arma::mat FAhetSig_cpp(const arma::vec & params, const arma::mat  & data) {
   arma::mat Lambda=zeros(data(0,0),data(0,1));
   int ii=0;
   for (int i = 0; i < data(0,1); i++) {
@@ -975,7 +1019,7 @@ arma::mat FAhetSig_cpp(const arma::vec & params, const arma::mat  & data){
 
 // [[Rcpp::depends("RcppArmadillo")]]
 
-arma::mat FAhomSig_cpp(const arma::vec & params, const arma::mat  & data){
+arma::mat FAhomSig_cpp(const arma::vec & params, const arma::mat  & data) {
   arma::mat Lambda=zeros(data(0,0),data(0,1));
   int ii=0;
   for (int i = 0; i < data(0,1); i++) {
@@ -1018,7 +1062,7 @@ XPtr<funcPtr> putFunPtrInXPtrSigma(std::string fstr) {
 
 
 
-arma::mat callViaStringSigma(const arma::vec params, const arma::mat data, std::string funname){
+arma::mat callViaStringSigma(const arma::vec params, const arma::mat data, std::string funname) {
   XPtr<funcPtr> xpfun = putFunPtrInXPtrSigma(funname);
   funcPtr fun = *xpfun;
   arma::mat y = fun(params, data);
@@ -1035,7 +1079,7 @@ arma::mat callViaStringSigma(const arma::vec params, const arma::mat data, std::
 // [[Rcpp::depends("RcppArmadillo")]]
 
 
-double minimfuncreml(double delta, arma::vec eta, arma::vec lambda, int n, int q) {
+double minimfuncreml(double delta, const arma::vec & eta, const arma::vec & lambda,const int & n,const int & q) {
   int df = n - q;
   double reml=df* log(sum(pow(eta,2)/(lambda + exp(delta)))) + sum(log(lambda + exp(delta)));
   //Rcpp::Rcout  << "reml:" << std::endl <<reml << std::endl;
@@ -1044,6 +1088,33 @@ double minimfuncreml(double delta, arma::vec eta, arma::vec lambda, int n, int q
   
   return -reml;
 }
+
+
+
+// [[Rcpp::depends("RcppArmadillo")]]
+
+
+double minimfuncremlfn1(double x, void * params)
+{
+  Rcpp::List * paramsk = (Rcpp::List*)(params);
+  arma::vec  eta =as<arma::vec>(paramsk[0]);
+  arma::vec  lambda=as<arma::vec>(paramsk[1]);
+  int  n=as<int>(paramsk[2]);
+  int  q=as<int>(paramsk[3]);
+  int df = n - q;
+  double reml=df*log(sum(pow(eta,2)/(lambda + exp(x)))) + sum(log(lambda + exp(x)));
+  //Rcpp::Rcout  << "reml:" << std::endl <<reml << std::endl;
+  reml = -0.5 * (reml + df + df * log(2 * M_PI/df));
+  // Rcpp::Rcout  << "reml:" << std::endl <<reml << std::endl;
+  
+  return -reml;
+ 
+}
+
+
+
+
+
 
 double zerofuncreml(double delta, arma::vec eta, arma::vec lambda, int n, int q) {
   int df = n - q;
@@ -1062,7 +1133,7 @@ double minimfuncml(double delta, arma::vec eta, arma::vec lambda, arma::vec epsi
 
 
 double zerofuncml(double delta, arma::vec eta, arma::vec lambda, arma::vec epsilon, int n, int q) {
-  double loglikzero=.5*(n ) * (sum(pow(eta,2)/pow(lambda + exp(delta),2)))/(sum(pow(eta,2)/(lambda + exp(delta)))) - .5*sum(1/(epsilon + exp(delta)));
+  double loglikzero=.5*(n )* (sum(pow(eta,2)/pow(lambda + exp(delta),2)))/(sum(pow(eta,2)/(lambda + exp(delta)))) - .5*sum(1/(epsilon + exp(delta)));
   // Rcpp::Rcout  << "loglikzero:" << std::endl <<loglikzero << std::endl;
   
   return loglikzero;
@@ -1080,7 +1151,7 @@ arma::vec glominremlbrent(double lower, double upper, double tolparconv, unsigne
   double b = upper;
   double fa =zerofuncreml(a, eta,  lambda, n, q);	// calculated now to save function calls
   double fb = zerofuncreml(b, eta,  lambda, n, q);	// calculated now to save function calls
-  double fs = 0;		// initialize 
+  double fs = 0;		// initialize
   
   if (!(fa * fb < 0))
   {
@@ -1178,7 +1249,7 @@ arma::vec glominremlbrent(double lower, double upper, double tolparconv, unsigne
 
 // [[Rcpp::depends("RcppArmadillo")]]
 
-List emmreml_arma_reml(const arma::colvec & y,const arma::mat & X,arma::mat  Z, arma::mat & K,  const double & tolparconv=1e-7, const int maxiter=1000, bool geterrors=false, bool Hinv=false){ 
+List emmreml_arma_reml(const arma::colvec & y,const arma::mat & X,arma::mat  Z, arma::mat & K,  const double & tolparconv=1e-7, const int maxiter=1000, bool geterrors=false, bool Hinv=false) {
   
   int q = X.n_cols;
   int n = X.n_rows;
@@ -1198,7 +1269,8 @@ List emmreml_arma_reml(const arma::colvec & y,const arma::mat & X,arma::mat  Z, 
   arma::vec eta = Ur.t()*y;
   arma::vec yandx(2);
   double m;
-  yandx=glominremlbrent(-25,30, tolparconv, maxiter,eta, lambda,  n, q);
+  
+  yandx=glominremlbrent(-(1e+2)/3,(1e+2)/3,tolparconv, maxiter,eta, lambda,  n, q);
   m=yandx(1);
   //  Rcpp::Rcout  << "m:" << std::endl << m << std::endl;
   
@@ -1214,11 +1286,11 @@ List emmreml_arma_reml(const arma::colvec & y,const arma::mat & X,arma::mat  Z, 
   int df = n - q;
   double reml=(n - q) * log(sum(pow(eta,2)/(lambda + exp(m)))) + sum(log(lambda + exp(m)));
   reml = -0.5 * (reml + df + df * log(2 * M_PI/df));
-  if (geterrors==true){
+  if (geterrors==true) {
     arma::vec Covbetahat=inv(X.t()*Vinv*X);
     arma::vec Varuhat=diagvec(pow(sigmausqhat,2)*ZK.t()*Vinv*(ZK-X*Covbetahat*X.t()*Vinv*ZK));
     arma::vec PEV=diagvec(sigmausqhat*K)-Varuhat;
-    if (Hinv){
+    if (Hinv) {
       List outaa=List::create(Rcpp::Named("Vu") =sigmausqhat ,Rcpp::Named("Ve") =sigmaesqhat,Rcpp::Named("betahat") = betahat,Rcpp::Named("uhat") = uhat, Rcpp::Named("reml") = reml, Rcpp::Named("Hinv") = Hinvhat, Rcpp::Named("Covbetahat") = Covbetahat, Rcpp::Named("PEV") = PEV);
       return outaa;
     }
@@ -1227,7 +1299,7 @@ List emmreml_arma_reml(const arma::colvec & y,const arma::mat & X,arma::mat  Z, 
       return outaa;
     }
   } else {
-    if (Hinv){
+    if (Hinv) {
       List outaa=List::create(Rcpp::Named("Vu") =sigmausqhat ,Rcpp::Named("Ve") =sigmaesqhat,Rcpp::Named("betahat") = betahat,Rcpp::Named("uhat") = uhat, Rcpp::Named("reml") = reml, Rcpp::Named("Hinv") = Hinvhat);
       return outaa;
     }
@@ -1237,10 +1309,6 @@ List emmreml_arma_reml(const arma::colvec & y,const arma::mat & X,arma::mat  Z, 
     }
   }
 }
-
-/////////////////////////////////////////////////////////////
-
-
 
 
 
@@ -1253,7 +1321,7 @@ arma::vec glominmlbrent(double lower, double upper, double tolparconv, unsigned 
   double b = upper;
   double fa =zerofuncml(a, eta,  lambda, epsilon,n, q);	// calculated now to save function calls
   double fb = zerofuncml(b, eta,  lambda, epsilon,n, q);// calculated now to save function calls
-  double fs = 0;		// initialize 
+  double fs = 0;		// initialize
   
   if (!(fa * fb < 0))
   {
@@ -1352,7 +1420,7 @@ arma::vec glominmlbrent(double lower, double upper, double tolparconv, unsigned 
 // [[Rcpp::depends("RcppArmadillo")]]
 
 
-List emmreml_arma_ml(const arma::colvec & y,const arma::mat & X, arma::mat  Z,  arma::mat  & K,  const double & tolparconv=1e-7, const int maxiter=1000, bool geterrors=false,  bool Hinv=false){ 
+List emmreml_arma_ml(const arma::colvec & y,const arma::mat & X, arma::mat  Z,  arma::mat  & K,  const double & tolparconv=1e-7, const int maxiter=1000, bool geterrors=false,  bool Hinv=false) {
   
   int q = X.n_cols;
   int n = X.n_rows;
@@ -1375,7 +1443,7 @@ List emmreml_arma_ml(const arma::colvec & y,const arma::mat & X, arma::mat  Z,  
   arma::vec eta = Ur.t()*y;
   arma::vec yandx(2);
   double m;
-  yandx=glominmlbrent(-25,30,tolparconv, maxiter,eta, lambda, epsilon, n, q);
+  yandx=glominmlbrent(-(1e+2)/3,(1e+2)/3,tolparconv, maxiter,eta, lambda, epsilon, n, q);
   m=yandx(1);
   arma::mat Hinvhat=(ZKZt + exp(m) * spI).i();
   arma::mat XtHinvhat = X.t()*Hinvhat;
@@ -1389,11 +1457,11 @@ List emmreml_arma_ml(const arma::colvec & y,const arma::mat & X, arma::mat  Z,  
   double loglik=n * log(sum(pow(eta,2)/(lambda + exp(m)))) + sum(log(epsilon + exp(m)));
   
   loglik = -0.5 * (loglik + n + n * log(2 * M_PI/n));
-  if (geterrors==true){
+  if (geterrors==true) {
     arma::vec Covbetahat=inv(X.t()*Vinv*X);
     arma::vec Varuhat=diagvec(pow(sigmausqhat,2)*ZK.t()*Vinv*(ZK-X*Covbetahat*X.t()*Vinv*ZK));
     arma::vec PEV=diagvec(sigmausqhat*K)-Varuhat;
-    if (Hinv){
+    if (Hinv) {
       List outaa=List::create(Rcpp::Named("Vu") =sigmausqhat ,Rcpp::Named("Ve") =sigmaesqhat,Rcpp::Named("betahat") = betahat,Rcpp::Named("uhat") = uhat, Rcpp::Named("loglik") = loglik, Rcpp::Named("Hinv") = Hinvhat, Rcpp::Named("Covbetahat") = Covbetahat,Rcpp::Named("PEV") = PEV);
       return outaa;
     }
@@ -1402,7 +1470,7 @@ List emmreml_arma_ml(const arma::colvec & y,const arma::mat & X, arma::mat  Z,  
       return outaa;
     }
   } else {
-    if (Hinv){
+    if (Hinv) {
       List outaa=List::create(Rcpp::Named("Vu") =sigmausqhat ,Rcpp::Named("Ve") =sigmaesqhat,Rcpp::Named("betahat") = betahat,Rcpp::Named("uhat") = uhat, Rcpp::Named("loglik") = loglik, Rcpp::Named("Hinv") = Hinvhat);
       return outaa;
     }
@@ -1418,15 +1486,17 @@ List emmreml_arma_ml(const arma::colvec & y,const arma::mat & X, arma::mat  Z,  
 // [[Rcpp::depends("RcppArmadillo")]]
 
 
-List emm(const arma::colvec & y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const bool & REML=true, const double & tolparconv=1e-7, const int maxiter=1000, bool geterrors=false, bool Hinv=false){ 
+List emm(const arma::colvec & y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const bool & REML=true, const double & tolparconv=1e-7, const int maxiter=1000, bool geterrors=false, bool Hinv=false) {
   Rcpp::List out;
   arma::mat Ztemp;
   Ztemp=as<arma::mat>(Zlist(0));
   arma::mat Ktemp=Rcpp::as<arma::mat>(Klist(0));
   
-  if (REML){out=emmreml_arma_reml(y,X,Ztemp ,Ktemp,tolparconv, maxiter, geterrors, Hinv);
+  if (REML) {
+    out=emmreml_arma_reml(y,X,Ztemp ,Ktemp,tolparconv, maxiter, geterrors, Hinv);
   }
-  else {out=emmreml_arma_ml(y,X,Ztemp,Ktemp, tolparconv, maxiter,geterrors, Hinv);
+  else {
+    out=emmreml_arma_ml(y,X,Ztemp,Ktemp, tolparconv, maxiter,geterrors, Hinv);
   }
   
   return out;
@@ -1435,7 +1505,7 @@ List emm(const arma::colvec & y,const arma::mat & X,const Rcpp::List & Zlist, co
 
 // [[Rcpp::depends("RcppArmadillo")]]
 
-double dFunc(const arma::vec & params,const arma::mat & data, const std::string & funname,const  arma::vec & y, const arma::mat & X, const arma::mat & Zt, const arma::mat & Whalf,  int n,int q, int p,const arma::mat & ZtW , const arma::mat & XtWX,const arma::vec & XtWy, const arma::mat & ZtWX, const arma::vec & ZtWy, bool REML, double tolparinv=1e-10){
+double dFunc(const arma::vec & params,const arma::mat & data, const std::string & funname,const  arma::vec & y, const arma::mat & X, const arma::mat & Zt, const arma::mat & Whalf,  int n,int q, int p,const arma::mat & ZtW , const arma::mat & XtWX,const arma::vec & XtWy, const arma::mat & ZtWX, const arma::vec & ZtWy, bool REML, double tolparinv=1e-10) {
   arma::mat K=exp(params(0))*callViaString(params(span(1, params.n_elem-1)),data,funname);
   arma::mat Lambdat=diagmat(pow(diagvec(K)+tolparinv,.5));
   Lambdat=cholsammupper(K,tolparinv);
@@ -1483,11 +1553,13 @@ double dFunc(const arma::vec & params,const arma::mat & data, const std::string 
   // profiled deviance or REML criterion
   ld=ld + fn*(1 + log(2*M_PI*pwrss) - log(fn));
   return ld;
-}  
+}
 
 // [[Rcpp::depends("RcppArmadillo")]]
 
-List outFunc(const arma::vec & params,const arma::mat & data, const std::string & funname, const arma::vec & y, const arma::mat & X, const arma::mat & Zt, const arma::mat & Whalf,  int n,int q, int p,const arma::mat & ZtW , const arma::mat & XtWX,const arma::vec & XtWy, const arma::mat & ZtWX,const arma::vec & ZtWy, bool REML, double tolparinv=1e-10, bool geterrors=false, bool Hinv=false ){
+List outFunc(const arma::vec & params,const arma::mat & data, const std::string & funname, const arma::vec & y, const arma::mat & X, const arma::mat & Zt, const arma::mat & Whalf,  int n,int q, int p,const arma::mat & ZtW , const arma::mat & XtWX,const arma::vec & XtWy, const arma::mat & ZtWX,const arma::vec & ZtWy, bool REML, double tolparinv=1e-10, bool geterrors=false, bool Hinv=false ) {
+//params(0) is lambda=sigmau/sigmae
+  
   arma::mat K=exp(params(0))*callViaString(params(span(1, params.n_elem-1)),data,funname);
   arma::mat Lambdat=diagmat(pow(diagvec(K)+tolparinv,.5));
   Lambdat=cholsammupper(K,tolparinv);
@@ -1545,40 +1617,40 @@ List outFunc(const arma::vec & params,const arma::mat & data, const std::string 
   arma::vec ehat =y-X*beta;
   arma::mat Vhat = (sigmausqhat) * Hhat;
   arma::mat Vinv = (1/sigmausqhat) * Hinvhat;
-  
-  
-  if (geterrors==true){
+  arma::vec paramsK=params.subvec(span(1, params.n_elem-1));
+  Rcpp::List corfuncparamslist=List::create(paramsK,NULL);
+  if (geterrors==true) {
     arma::vec Covbetahat=inv(X.t()*Vinv*X);
     arma::vec Varuhat=diagvec(pow(sigmausqhat,2)*ZK.t()*Vinv*(ZK-X*Covbetahat*X.t()*Vinv*ZK));
     arma::vec PEV=diagvec(K)-Varuhat;
     double loglik=dmvnorm_arma(y, X*beta,Vinv, true, true);
-    if (Hinv){
-      List outaa=List::create(Rcpp::Named("Vu") =sigmausqhat ,Rcpp::Named("Ve") =sigmaesqhat,Rcpp::Named("betahat") = beta,Rcpp::Named("uhat") = b, Rcpp::Named("loglik") = loglik, Rcpp::Named("Hinv") = Hinvhat, Rcpp::Named("Covbetahat") = Covbetahat,Rcpp::Named("PEV") = PEV);
+    if (Hinv) {
+      List outaa=List::create(Rcpp::Named("Vu") =sigmausqhat ,Rcpp::Named("Ve") =sigmaesqhat,Rcpp::Named("betahat") = beta,Rcpp::Named("uhat") = b, Rcpp::Named("loglik") = loglik, Rcpp::Named("Hinv") = Hinvhat, Rcpp::Named("Covbetahat") = Covbetahat,Rcpp::Named("PEV") = PEV, Rcpp::Named("corfuncparamslist") =corfuncparamslist);
       return outaa;
     }
     else {
-      List outaa=List::create(Rcpp::Named("Vu") =sigmausqhat ,Rcpp::Named("Ve") =sigmaesqhat,Rcpp::Named("betahat") = beta,Rcpp::Named("uhat") = b, Rcpp::Named("loglik") = loglik, Rcpp::Named("Covbetahat") = Covbetahat,Rcpp::Named("PEV") = PEV);
-      return outaa;   
+      List outaa=List::create(Rcpp::Named("Vu") =sigmausqhat ,Rcpp::Named("Ve") =sigmaesqhat,Rcpp::Named("betahat") = beta,Rcpp::Named("uhat") = b, Rcpp::Named("loglik") = loglik, Rcpp::Named("Covbetahat") = Covbetahat,Rcpp::Named("PEV") = PEV, Rcpp::Named("corfuncparamslist") =corfuncparamslist);
+      return outaa;
     }
   } else {
     double loglik=dmvnorm_arma(y, X*beta,Vinv,true, true);
-    if (Hinv){
-      List outaa=List::create(Rcpp::Named("Vu") =sigmausqhat ,Rcpp::Named("Ve") =sigmaesqhat,Rcpp::Named("betahat") = beta,Rcpp::Named("uhat") = b, Rcpp::Named("loglik") = loglik, Rcpp::Named("Hinv") = Hinvhat);
+    if (Hinv) {
+      List outaa=List::create(Rcpp::Named("Vu") =sigmausqhat ,Rcpp::Named("Ve") =sigmaesqhat,Rcpp::Named("betahat") = beta,Rcpp::Named("uhat") = b, Rcpp::Named("loglik") = loglik, Rcpp::Named("Hinv") = Hinvhat, Rcpp::Named("corfuncparamslist") =corfuncparamslist);
       return outaa;
     }
     else {
-      List outaa=List::create(Rcpp::Named("Vu") =sigmausqhat ,Rcpp::Named("Ve") =sigmaesqhat,Rcpp::Named("betahat") = beta,Rcpp::Named("uhat") = b, Rcpp::Named("loglik") = loglik);
+      List outaa=List::create(Rcpp::Named("Vu") =sigmausqhat ,Rcpp::Named("Ve") =sigmaesqhat,Rcpp::Named("betahat") = beta,Rcpp::Named("uhat") = b, Rcpp::Named("loglik") = loglik, Rcpp::Named("corfuncparamslist") =corfuncparamslist);
       return outaa;
     }
   }
-}  
+}
 
 
 
 // [[Rcpp::depends("RcppArmadillo")]]
 
 // /List simplex_minfuncforcormv(arma::vec start,const double tolparconv,const  int  maxiter, const arma::mat data, std::string funname, arma::mat Omega, arma::mat Z, arma::mat ZKZtlisti,arma::vec e, double sigmasq)
-List simplex_dfunc( arma::vec start,const double  & tolparconv,const  int & maxiter, const arma::mat & data, const std::string & funname, const arma::vec & y, const arma::mat & X, const arma::mat & Zt, const arma::mat & Whalf,  int n,int q, int p,const arma::mat & ZtW ,const  arma::mat & XtWX,const arma::vec & XtWy, const arma::mat & ZtWX,const arma::vec & ZtWy, bool REML, double tolparinv=1e-10)
+List simplex_dfunc(arma::vec start,const double  & tolparconv,const  int & maxiter, const arma::mat & data, const std::string & funname, const arma::vec & y, const arma::mat & X, const arma::mat & Zt, const arma::mat & Whalf,  int n,int q, int p,const arma::mat & ZtW ,const  arma::mat & XtWX,const arma::vec & XtWy, const arma::mat & ZtWX,const arma::vec & ZtWy, bool REML, double tolparinv=1e-10)
 {
   
   const  double scale=1;
@@ -1623,12 +1695,12 @@ List simplex_dfunc( arma::vec start,const double  & tolparconv,const  int & maxi
   pn = scale*(sqrt(npar+1)-1+npar)/(npar*sqrt(2));
   qn = scale*(sqrt(npar+1)-1)/(npar*sqrt(2));
   
-  for (i=0;i<npar;i++) {
+  for (i=0; i<npar; i++) {
     v(0,i) = start[i];
   }
   
-  for (i=1;i<=npar;i++) {
-    for (j=0;j<npar;j++) {
+  for (i=1; i<=npar; i++) {
+    for (j=0; j<npar; j++) {
       if (i-1 == j) {
         v(i,j) = pn + start[j];
       }
@@ -1640,12 +1712,12 @@ List simplex_dfunc( arma::vec start,const double  & tolparconv,const  int & maxi
   //Use the constraints, just scale so that 1>v[j]>0, sum(v[j])=1
   
   /* find the initial function values */
-  for (j=0;j<=npar;j++) {
+  for (j=0; j<=npar; j++) {
     vvec=(v.row(j)).t();
     
     // minfuncforcor(const arma::vec  params,const arma::mat data, std::string funname, arma::mat Omegainv, arma::mat Z,arma::mat ZKtZt,arma::mat Rmat, arma::mat Lambda)
     //minfuncforcor(as_scalar(vvec),,data,funname,Omegainv,Z,ZKtZt,Rmat,Lambda);
-    if (funname=="Const"){
+    if (funname=="Const") {
       f[j] =dFunc(join_cols(vvec,zeros(1,1)),data,funname,y, X, Zt, Whalf,n,q,  p,ZtW , XtWX, XtWy,ZtWX,ZtWy,REML,tolparinv);
     }
     else {
@@ -1656,10 +1728,10 @@ List simplex_dfunc( arma::vec start,const double  & tolparconv,const  int & maxi
   ksimplex = npar+1;
   
   /* begin the main loop of the minimization */
-  for (itr=1;itr<=maxiter;itr++) {     
+  for (itr=1; itr<=maxiter; itr++) {
     /* find the index of the largest value */
     vg=0;
-    for (j=0;j<=npar;j++) {
+    for (j=0; j<=npar; j++) {
       if (f[j] > f[vg]) {
         vg = j;
       }
@@ -1667,7 +1739,7 @@ List simplex_dfunc( arma::vec start,const double  & tolparconv,const  int & maxi
     
     /* find the index of the smallest value */
     vs=0;
-    for (j=0;j<=npar;j++) {
+    for (j=0; j<=npar; j++) {
       if (f[j] < f[vs]) {
         vs = j;
       }
@@ -1675,16 +1747,16 @@ List simplex_dfunc( arma::vec start,const double  & tolparconv,const  int & maxi
     
     /* find the index of the second largest value */
     vh=vs;
-    for (j=0;j<=npar;j++) {
+    for (j=0; j<=npar; j++) {
       if (f[j] > f[vh] && f[j] < f[vg]) {
         vh = j;
       }
     }
     
     /* calculate the centroid */
-    for (j=0;j<=npar-1;j++) {
+    for (j=0; j<=npar-1; j++) {
       cent=0.0;
-      for (m=0;m<=npar;m++) {
+      for (m=0; m<=npar; m++) {
         if (m!=vg) {
           cent += v(m,j);
         }
@@ -1693,21 +1765,21 @@ List simplex_dfunc( arma::vec start,const double  & tolparconv,const  int & maxi
     }
     
     /* reflect vg to new vertex vr */
-    for (j=0;j<=npar-1;j++) {
+    for (j=0; j<=npar-1; j++) {
       /*vr[j] = (1+ALPHA)*vm[j] - ALPHA*v[vg][j];*/
       vr[j] = vm[j]+ALPHA*(vm[j]-v(vg,j));
     }
     
-    if (funname=="Const"){
+    if (funname=="Const") {
       fr =dFunc(join_cols(vr,zeros(1,1)),data,funname,y, X, Zt, Whalf,n,q,  p,ZtW , XtWX, XtWy,ZtWX,ZtWy,REML,tolparinv);
     }
     else {
       fr =dFunc(vr,data,funname,y, X, Zt, Whalf,n,q,  p,ZtW , XtWX, XtWy,ZtWX,ZtWy,REML,tolparinv);
-    }    
+    }
     ksimplex++;
     
     if (fr < f[vh] && fr >= f[vs]) {
-      for (j=0;j<=npar-1;j++) {
+      for (j=0; j<=npar-1; j++) {
         v(vg,j) = vr[j];
       }
       f[vg] = fr;
@@ -1715,30 +1787,32 @@ List simplex_dfunc( arma::vec start,const double  & tolparconv,const  int & maxi
     
     /* investigate a step further in this direction */
     if ( fr <  f[vs]) {
-      for (j=0;j<=npar-1;j++) {
+      for (j=0; j<=npar-1; j++) {
         /*ve[j] = GAMMA*vr[j] + (1-GAMMA)*vm[j];*/
         ve[j] = vm[j]+GAMMA*(vr[j]-vm[j]);
       }
       
       
-      if (funname=="Const"){
+      if (funname=="Const") {
         fe =dFunc(join_cols(ve,zeros(1,1)),data,funname,y, X, Zt, Whalf,n,q,  p,ZtW , XtWX, XtWy,ZtWX,ZtWy,REML,tolparinv);
       }
       else {
         fe =dFunc(ve,data,funname,y, X, Zt, Whalf,n,q,  p,ZtW , XtWX, XtWy,ZtWX,ZtWy,REML,tolparinv);
-      }      ksimplex++;
+      }
       
-      /* by making fe < fr as opposed to fe < f[vs], 			   
-                                              Rosenbrocks function takes 63 iterations as opposed 
+      ksimplex++;
+      
+      /* by making fe < fr as opposed to fe < f[vs],
+                                              Rosenbrocks function takes 63 iterations as opposed
       to 64 when using double variables. */
       if (fe < fr) {
-        for (j=0;j<=npar-1;j++) {
+        for (j=0; j<=npar-1; j++) {
           v(vg,j)= ve[j];
         }
         f[vg] = fe;
       }
       else {
-        for (j=0;j<=npar-1;j++) {
+        for (j=0; j<=npar-1; j++) {
           v(vg,j) = vr[j];
         }
         f[vg] = fr;
@@ -1749,65 +1823,68 @@ List simplex_dfunc( arma::vec start,const double  & tolparconv,const  int & maxi
     if (fr >= f[vh]) {
       if (fr < f[vg] && fr >= f[vh]) {
         /* perform outside contraction */
-        for (j=0;j<=npar-1;j++) {
+        for (j=0; j<=npar-1; j++) {
           /*vc[j] = BETA*v[vg][j] + (1-BETA)*vm[j];*/
           vc[j] = vm[j]+BETA*(vr[j]-vm[j]);
         }
         
         
-        if (funname=="Const"){
+        if (funname=="Const") {
           fc =dFunc(join_cols(vc,zeros(1,1)),data,funname,y, X, Zt, Whalf,n,q,  p,ZtW , XtWX, XtWy,ZtWX,ZtWy,REML,tolparinv);
         }
         else {
           fc =dFunc(vc,data,funname,y, X, Zt, Whalf,n,q,  p,ZtW , XtWX, XtWy,ZtWX,ZtWy,REML,tolparinv);
-        }        ksimplex++;
+        }
+        ksimplex++;
       }
       else {
         /* perform inside contraction */
-        for (j=0;j<=npar-1;j++) {
+        for (j=0; j<=npar-1; j++) {
           /*vc[j] = BETA*v[vg][j] + (1-BETA)*vm[j];*/
           vc[j] = vm[j]-BETA*(vm[j]-v(vg,j));
         }
         
-        if (funname=="Const"){
+        if (funname=="Const") {
           fc =dFunc(join_cols(vc,zeros(1,1)),data,funname,y, X, Zt, Whalf,n,q,  p,ZtW , XtWX, XtWy,ZtWX,ZtWy,REML,tolparinv);
         }
         else {
           fc =dFunc(vc,data,funname,y, X, Zt, Whalf,n,q,  p,ZtW , XtWX, XtWy,ZtWX,ZtWy,REML,tolparinv);
-        }        ksimplex++;
+        }
+        ksimplex++;
       }
       
       
       if (fc < f[vg]) {
-        for (j=0;j<=npar-1;j++) {
+        for (j=0; j<=npar-1; j++) {
           v(vg,j) = vc[j];
         }
         f[vg] = fc;
       }
       /* at this point the contraction is not successful,
-      we must halve the distance from vs to all the 
+      we must halve the distance from vs to all the
       vertices of the simplex and then continue.
-      10/31/97 - modified to account for ALL vertices. 
+      10/31/97 - modified to account for ALL vertices.
       */
       else {
-        for (row=0;row<=npar;row++) {
+        for (row=0; row<=npar; row++) {
           if (row != vs) {
-            for (j=0;j<=npar-1;j++) {
+            for (j=0; j<=npar-1; j++) {
               v(row,j) = v(vs,j)+(v(row,j)-v(vs,j))/2.0;
             }
           }
         }
         
-        if (funname=="Const"){
+        if (funname=="Const") {
           f[vg] =dFunc(join_cols(vvec,zeros(1,1)),data,funname,y, X, Zt, Whalf,n,q,  p,ZtW , XtWX, XtWy,ZtWX,ZtWy,REML,tolparinv);
         }
         else {
           f[vg] =dFunc(vvec,data,funname,y, X, Zt, Whalf,n,q,  p,ZtW , XtWX, XtWy,ZtWX,ZtWy,REML,tolparinv);
-        }        ksimplex++;
+        }
+        ksimplex++;
         
         
         vvec=(v.row(vh)).t();
-        if (funname=="Const"){
+        if (funname=="Const") {
           f[vh] =dFunc(join_cols(vvec,zeros(1,1)),data,funname,y, X, Zt, Whalf,n,q,  p,ZtW , XtWX, XtWy,ZtWX,ZtWy,REML,tolparinv);
         }
         else {
@@ -1823,12 +1900,12 @@ List simplex_dfunc( arma::vec start,const double  & tolparconv,const  int & maxi
     
     /* test for convergence */
     fsum = 0.0;
-    for (j=0;j<=npar;j++) {
+    for (j=0; j<=npar; j++) {
       fsum += f[j];
     }
     favg = fsum/(npar+1);
     s = 0.0;
-    for (j=0;j<=npar;j++) {
+    for (j=0; j<=npar; j++) {
       s += pow((f[j]-favg),2.0)/(npar);
     }
     s = sqrt(s);
@@ -1839,20 +1916,20 @@ List simplex_dfunc( arma::vec start,const double  & tolparconv,const  int & maxi
   
   /* find the index of the smallest value */
   vs=0;
-  for (j=0;j<=npar;j++) {
+  for (j=0; j<=npar; j++) {
     if (f[j] < f[vs]) {
       vs = j;
     }
   }
   
   
-  for (j=0;j<npar;j++) {
+  for (j=0; j<npar; j++) {
     
     start[j] = v(vs,j);
   }
   vvec=(v.row(vs)).t();
   
-  if (funname=="Const"){
+  if (funname=="Const") {
     minval =dFunc(join_cols(vvec,zeros(1,1)),data,funname,y, X, Zt, Whalf,n,q,  p,ZtW , XtWX, XtWy,ZtWX,ZtWy,REML,tolparinv);
   }
   else {
@@ -1869,7 +1946,7 @@ List simplex_dfunc( arma::vec start,const double  & tolparconv,const  int & maxi
 
 // [[Rcpp::depends("RcppArmadillo")]]
 
-List dmm(const arma::colvec & y,const arma::mat & X,const arma::mat & Z, const Rcpp::List & Kfunc, const arma::mat & W, const arma::mat & R,const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, bool geterrors=false, bool REML=false, bool Hinv=false){ 
+List dmm(const arma::colvec & y,const arma::mat & X,const arma::mat & Z, const Rcpp::List & Kfunc, const arma::mat & W, const arma::mat & R,const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, bool geterrors=false, bool REML=false, bool Hinv=false) {
   arma::mat Zt=Z.t();
   int n= y.n_elem;
   int p =X.n_cols;
@@ -1887,16 +1964,16 @@ List dmm(const arma::colvec & y,const arma::mat & X,const arma::mat & Z, const R
   arma::vec corfuncparamslist=join_cols(zeros(1,1),Kparamstemp);
   arma::mat Kdatatemp= Rcpp::as<arma::mat>(Kfunc(2));
   List out;
-  if (Kfunctiontemp=="Const"){
+  if (Kfunctiontemp=="Const") {
     out=simplex_dfunc(corfuncparamslist(span(0,corfuncparamslist.n_elem-2)),tolparconv,maxiter,Kdatatemp, Kfunctiontemp, y, X, Zt, Whalf, n,q,p, ZtW , XtWX,XtWy,ZtWX,ZtWy, REML, tolparinv);
   } else {
     out=simplex_dfunc(corfuncparamslist,tolparconv,maxiter,Kdatatemp, Kfunctiontemp, y, X, Zt, Whalf, n,q,p, ZtW , XtWX,XtWy,ZtWX,ZtWy, REML, tolparinv);
   }
   arma::vec out1 =Rcpp::as<arma::vec>(out(1));
   
-  if (Kfunctiontemp=="Const"){
+  if (Kfunctiontemp=="Const") {
     out1=join_cols(out1,zeros(1,1));
-  } 
+  }
   
   List outaaa=outFunc(out1,Kdatatemp, Kfunctiontemp, y, X,Zt, Whalf,n,q,p,ZtW ,XtWX,XtWy,ZtWX,ZtWy,REML,tolparinv,geterrors, Hinv);
   return outaaa;
@@ -1910,7 +1987,7 @@ List dmm(const arma::colvec & y,const arma::mat & X,const arma::mat & Z, const R
 // [[Rcpp::depends("RcppArmadillo")]]
 
 
-List mm(const arma::colvec & y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, bool geterrors=false, bool Hinv=false){ 
+List mm(const arma::colvec & y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, bool geterrors=false, bool Hinv=false) {
   /////////////
   int k=2;
   arma::vec dimvec(2);
@@ -1933,7 +2010,7 @@ List mm(const arma::colvec & y,const arma::mat & X,const Rcpp::List & Zlist, con
   ///////////
   for(int i=0; i<k; i++) {
     Ktemp=as<arma::mat>(Klist(i));
-    dimvec(i) = Ktemp.n_rows ; 
+    dimvec(i) = Ktemp.n_rows ;
     dimen = dimen+dimvec(i);
     Ztemp=as<arma::mat>(Zlist(i));
     ZKZtlist(i)=Ztemp*Ktemp*Ztemp.t();
@@ -1958,7 +2035,7 @@ List mm(const arma::colvec & y,const arma::mat & X,const Rcpp::List & Zlist, con
   
   arma::vec wvec(n);
   int itercountouter=0;
-  do{
+  do {
     itercountouter=itercountouter+1;
     for(int i=0; i<n; i++) {
       wvec(i)=1/(sigmasqhatvec(0)*as_scalar(eigval(i))+sigmasqhatvec(1));
@@ -1987,12 +2064,12 @@ List mm(const arma::colvec & y,const arma::mat & X,const Rcpp::List & Zlist, con
   arma::mat Vinv = (1/sigmausqhat) * Hinvhat;
   arma::mat ZK=as<arma::mat>(Zlist(0))*as<arma::mat>(Klist(0));
   arma::vec uhat = ZK.t()*Hinvhatehat;
-  if (geterrors==true){
+  if (geterrors==true) {
     arma::vec Covbetahat=inv_sympdsamm(X.t()*Vinv*X, tolparinv);
     arma::vec Varuhat=diagvec(pow(sigmausqhat,2)*ZK.t()*Vinv*(ZK-X*Covbetahat*X.t()*Vinv*ZK));
     arma::vec PEV=diagvec(sigmausqhat*as<arma::mat>(Klist(0)))-Varuhat;
     double loglik=dmvnorm_arma(y, X*betahat,Vinv, true, true);
-    if (Hinv){
+    if (Hinv) {
       List outaa=List::create(Rcpp::Named("Vu") =sigmausqhat ,Rcpp::Named("Ve") =sigmaesqhat,Rcpp::Named("betahat") = betahat,Rcpp::Named("uhat") = uhat, Rcpp::Named("loglik") = loglik, Rcpp::Named("Hinv") = Hinvhat, Rcpp::Named("Covbetahat") = Covbetahat,Rcpp::Named("PEV") = PEV);
       return outaa;
     }
@@ -2002,7 +2079,7 @@ List mm(const arma::colvec & y,const arma::mat & X,const Rcpp::List & Zlist, con
     }
   } else {
     double loglik=dmvnorm_arma(y, X*betahat,Vinv,true, true);
-    if (Hinv){
+    if (Hinv) {
       List outaa=List::create(Rcpp::Named("Vu") =sigmausqhat ,Rcpp::Named("Ve") =sigmaesqhat,Rcpp::Named("betahat") = betahat,Rcpp::Named("uhat") = uhat, Rcpp::Named("loglik") = loglik, Rcpp::Named("Hinv") = Hinvhat);
       return outaa;
     }
@@ -2018,7 +2095,7 @@ List mm(const arma::colvec & y,const arma::mat & X,const Rcpp::List & Zlist, con
 /////////////////////////////////////////////////////////////
 
 
-double minfuncforcor(const arma::vec & params, const arma::mat & data, const std::string & funname, const arma::mat & Omega, const arma::mat & Z, const arma::mat & ZKZtlisti,const arma::vec & e, const double & sigmasq){
+double minfuncforcor(const arma::vec & params, const arma::mat & data, const std::string & funname, const arma::mat & Omega, const arma::mat & Z, const arma::mat & ZKZtlisti,const arma::vec & e, const double & sigmasq) {
   arma::mat Omegatemp=Omega-sigmasq*ZKZtlisti;
   arma::mat K=callViaString(params,data, funname);
   //arma::mat Kinv=callViaStringinv(paramstemp,data, funname);
@@ -2087,12 +2164,12 @@ List simplex_minfuncforcormv(arma::vec  start,const double & tolparconv,const  i
   pn = scale*(sqrt(npar+1)-1+npar)/(npar*sqrt(2));
   qn = scale*(sqrt(npar+1)-1)/(npar*sqrt(2));
   
-  for (i=0;i<npar;i++) {
+  for (i=0; i<npar; i++) {
     v(0,i) = start[i];
   }
   
-  for (i=1;i<=npar;i++) {
-    for (j=0;j<npar;j++) {
+  for (i=1; i<=npar; i++) {
+    for (j=0; j<npar; j++) {
       if (i-1 == j) {
         v(i,j) = pn + start[j];
       }
@@ -2104,7 +2181,7 @@ List simplex_minfuncforcormv(arma::vec  start,const double & tolparconv,const  i
   //Use the constraints, just scale so that 1>v[j]>0, sum(v[j])=1
   
   /* find the initial function values */
-  for (j=0;j<=npar;j++) {
+  for (j=0; j<=npar; j++) {
     vvec=(v.row(j)).t();
     
     
@@ -2114,10 +2191,10 @@ List simplex_minfuncforcormv(arma::vec  start,const double & tolparconv,const  i
   ksimplex = npar+1;
   
   /* begin the main loop of the minimization */
-  for (itr=1;itr<=maxiter;itr++) {     
+  for (itr=1; itr<=maxiter; itr++) {
     /* find the index of the largest value */
     vg=0;
-    for (j=0;j<=npar;j++) {
+    for (j=0; j<=npar; j++) {
       if (f[j] > f[vg]) {
         vg = j;
       }
@@ -2125,7 +2202,7 @@ List simplex_minfuncforcormv(arma::vec  start,const double & tolparconv,const  i
     
     /* find the index of the smallest value */
     vs=0;
-    for (j=0;j<=npar;j++) {
+    for (j=0; j<=npar; j++) {
       if (f[j] < f[vs]) {
         vs = j;
       }
@@ -2133,16 +2210,16 @@ List simplex_minfuncforcormv(arma::vec  start,const double & tolparconv,const  i
     
     /* find the index of the second largest value */
     vh=vs;
-    for (j=0;j<=npar;j++) {
+    for (j=0; j<=npar; j++) {
       if (f[j] > f[vh] && f[j] < f[vg]) {
         vh = j;
       }
     }
     
     /* calculate the centroid */
-    for (j=0;j<=npar-1;j++) {
+    for (j=0; j<=npar-1; j++) {
       cent=0.0;
-      for (m=0;m<=npar;m++) {
+      for (m=0; m<=npar; m++) {
         if (m!=vg) {
           cent += v(m,j);
         }
@@ -2151,7 +2228,7 @@ List simplex_minfuncforcormv(arma::vec  start,const double & tolparconv,const  i
     }
     
     /* reflect vg to new vertex vr */
-    for (j=0;j<=npar-1;j++) {
+    for (j=0; j<=npar-1; j++) {
       /*vr[j] = (1+ALPHA)*vm[j] - ALPHA*v[vg][j];*/
       vr[j] = vm[j]+ALPHA*(vm[j]-v(vg,j));
     }
@@ -2161,7 +2238,7 @@ List simplex_minfuncforcormv(arma::vec  start,const double & tolparconv,const  i
     ksimplex++;
     
     if (fr < f[vh] && fr >= f[vs]) {
-      for (j=0;j<=npar-1;j++) {
+      for (j=0; j<=npar-1; j++) {
         v(vg,j) = vr[j];
       }
       
@@ -2170,7 +2247,7 @@ List simplex_minfuncforcormv(arma::vec  start,const double & tolparconv,const  i
     
     /* investigate a step further in this direction */
     if ( fr <  f[vs]) {
-      for (j=0;j<=npar-1;j++) {
+      for (j=0; j<=npar-1; j++) {
         /*ve[j] = GAMMA*vr[j] + (1-GAMMA)*vm[j];*/
         ve[j] = vm[j]+GAMMA*(vr[j]-vm[j]);
       }
@@ -2179,18 +2256,18 @@ List simplex_minfuncforcormv(arma::vec  start,const double & tolparconv,const  i
       fe = minfuncforcor(ve,data,funname,Omega,Z,ZKZtlisti,e,sigmasq);
       ksimplex++;
       
-      /* by making fe < fr as opposed to fe < f[vs], 			   
-                                              Rosenbrocks function takes 63 iterations as opposed 
+      /* by making fe < fr as opposed to fe < f[vs],
+                                              Rosenbrocks function takes 63 iterations as opposed
       to 64 when using double variables. */
       
       if (fe < fr) {
-        for (j=0;j<=npar-1;j++) {
+        for (j=0; j<=npar-1; j++) {
           v(vg,j)= ve[j];
         }
         f[vg] = fe;
       }
       else {
-        for (j=0;j<=npar-1;j++) {
+        for (j=0; j<=npar-1; j++) {
           v(vg,j) = vr[j];
         }
         f[vg] = fr;
@@ -2201,7 +2278,7 @@ List simplex_minfuncforcormv(arma::vec  start,const double & tolparconv,const  i
     if (fr >= f[vh]) {
       if (fr < f[vg] && fr >= f[vh]) {
         /* perform outside contraction */
-        for (j=0;j<=npar-1;j++) {
+        for (j=0; j<=npar-1; j++) {
           /*vc[j] = BETA*v[vg][j] + (1-BETA)*vm[j];*/
           vc[j] = vm[j]+BETA*(vr[j]-vm[j]);
         }
@@ -2212,7 +2289,7 @@ List simplex_minfuncforcormv(arma::vec  start,const double & tolparconv,const  i
       }
       else {
         /* perform inside contraction */
-        for (j=0;j<=npar-1;j++) {
+        for (j=0; j<=npar-1; j++) {
           /*vc[j] = BETA*v[vg][j] + (1-BETA)*vm[j];*/
           vc[j] = vm[j]-BETA*(vm[j]-v(vg,j));
         }
@@ -2223,20 +2300,20 @@ List simplex_minfuncforcormv(arma::vec  start,const double & tolparconv,const  i
       
       
       if (fc < f[vg]) {
-        for (j=0;j<=npar-1;j++) {
+        for (j=0; j<=npar-1; j++) {
           v(vg,j) = vc[j];
         }
         f[vg] = fc;
       }
       /* at this point the contraction is not successful,
-      we must halve the distance from vs to all the 
+      we must halve the distance from vs to all the
       vertices of the simplex and then continue.
-      10/31/97 - modified to account for ALL vertices. 
+      10/31/97 - modified to account for ALL vertices.
       */
       else {
-        for (row=0;row<=npar;row++) {
+        for (row=0; row<=npar; row++) {
           if (row != vs) {
-            for (j=0;j<=npar-1;j++) {
+            for (j=0; j<=npar-1; j++) {
               v(row,j) = v(vs,j)+(v(row,j)-v(vs,j))/2.0;
             }
           }
@@ -2258,12 +2335,12 @@ List simplex_minfuncforcormv(arma::vec  start,const double & tolparconv,const  i
     
     /* test for convergence */
     fsum = 0.0;
-    for (j=0;j<=npar;j++) {
+    for (j=0; j<=npar; j++) {
       fsum += f[j];
     }
     favg = fsum/(npar+1);
     s = 0.0;
-    for (j=0;j<=npar;j++) {
+    for (j=0; j<=npar; j++) {
       s += pow((f[j]-favg),2.0)/(npar);
     }
     s = sqrt(s);
@@ -2274,14 +2351,14 @@ List simplex_minfuncforcormv(arma::vec  start,const double & tolparconv,const  i
   
   /* find the index of the smallest value */
   vs=0;
-  for (j=0;j<=npar;j++) {
+  for (j=0; j<=npar; j++) {
     if (f[j] < f[vs]) {
       vs = j;
     }
   }
   
   
-  for (j=0;j<npar;j++) {
+  for (j=0; j<npar; j++) {
     
     start[j] = v(vs,j);
   }
@@ -2303,7 +2380,7 @@ List simplex_minfuncforcormv(arma::vec  start,const double & tolparconv,const  i
 // [[Rcpp::depends("RcppArmadillo")]]
 
 
-List dermm(const arma::vec & y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W, const Rcpp::List & R, const arma::uvec & corfunc,const arma::uvec & corfuncfixed,const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, const bool & geterrors=false,const int  & methodopt=0, bool Hinv=false){ 
+List dermm(const arma::vec & y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W, const Rcpp::List & R, const arma::uvec & corfunc,const arma::uvec & corfuncfixed,const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, const bool & geterrors=false,const int  & methodopt=0, bool Hinv=false) {
   /////////////
   
   int k=Zlist.size();
@@ -2336,7 +2413,7 @@ List dermm(const arma::vec & y,const arma::mat & X,const Rcpp::List & Zlist, con
   Rcpp::List ZKZtlist(k+1);
   //Rcpp::Rcout  << 9999992 << std::endl;
   for(int i=0; i<k; i++) {
-    if (corfunc(i)){
+    if (corfunc(i)) {
       // Rcpp::Rcout  << 1999999 << std::endl;
       Kfunctiontemp= Rcpp::as<std::string>(Rcpp::as<Rcpp::List>(Klist(i))(0));
       Kparamstemp= Rcpp::as<arma::vec>(Rcpp::as<Rcpp::List>(Klist(i))(1));
@@ -2346,8 +2423,10 @@ List dermm(const arma::vec & y,const arma::mat & X,const Rcpp::List & Zlist, con
       // Rcpp::Rcout  << 9999993 << std::endl;
       
       ////Rcpp::Rcout  << Ktemp.n_rows << std::endl << Ktemp.n_cols << std::endl;
-    } else {Ktemp=as<arma::mat>(Klist(i));}
-    dimvec(i) = Ktemp.n_rows ; 
+    } else {
+      Ktemp=as<arma::mat>(Klist(i));
+    }
+    dimvec(i) = Ktemp.n_rows ;
     dimen = dimen+dimvec(i);
     Ztemp0=as<arma::mat>(Zlist(i));
     Ztemp=Ztemp0;
@@ -2357,7 +2436,7 @@ List dermm(const arma::vec & y,const arma::mat & X,const Rcpp::List & Zlist, con
     //  Rcpp::Rcout  << 9999994 << std::endl;
   }
   
-  if (corfunc(k)){
+  if (corfunc(k)) {
     //  Rcpp::Rcout  << 9999995 << std::endl;
     Kfunctiontemp= Rcpp::as<std::string>(R(0));
     Kparamstemp= Rcpp::as<arma::vec>(R(1));
@@ -2366,7 +2445,9 @@ List dermm(const arma::vec & y,const arma::mat & X,const Rcpp::List & Zlist, con
     Ktemp=callViaString(Kparamstemp,Kdatatemp,Kfunctiontemp);
     //  Rcpp::Rcout  << 99996 << std::endl;
     
-  } else {Ktemp=as<arma::mat>(R(0));}
+  } else {
+    Ktemp=as<arma::mat>(R(0));
+  }
   Ztemp=W;
   ZKZtlist(k)=Ztemp*Ktemp*Ztemp.t();
   
@@ -2381,13 +2462,13 @@ List dermm(const arma::vec & y,const arma::mat & X,const Rcpp::List & Zlist, con
   arma::mat ZKZtdiff(0,n);
   List brentout(2);
   int itercountouter=0;
-  do{
+  do {
     logsigmahatvec0=logsigmahatvec;
     itercountouter=itercountouter+1;
     for(int i=0; i<k; i++) {
       
       ZKZtdiff=arma::mat(0,n);
-      if (corfunc(i)){
+      if (corfunc(i)) {
         
         Kfunctiontemp= Rcpp::as<std::string>(Rcpp::as<Rcpp::List>(Klist(i))(0));
         Kparamstemp =  Rcpp::as<arma::vec>(corfuncparamslist(i));
@@ -2406,7 +2487,7 @@ List dermm(const arma::vec & y,const arma::mat & X,const Rcpp::List & Zlist, con
     }
     ZKZtdiff=arma::mat(0,n);
     
-    if (corfunc(k)){
+    if (corfunc(k)) {
       
       Kfunctiontemp= Rcpp::as<std::string>(R(0));
       Kparamstemp =  Rcpp::as<arma::vec>(corfuncparamslist(k));
@@ -2441,18 +2522,18 @@ List dermm(const arma::vec & y,const arma::mat & X,const Rcpp::List & Zlist, con
       dlogLvec(ii)=dlogLvec(ii)+.5*as_scalar(y.t()*P*Rcpp::as<arma::mat>(ZKZtdifflist(i)).rows(0,n-1)*P*y);
       ii=ii+1;
     }
-    if (methodopt!=0){
+    if (methodopt!=0) {
       //AImat
       iirow=0;
-      for(int irow=0; irow<(k+1); irow++) { 
+      for(int irow=0; irow<(k+1); irow++) {
         for(int jrow=0; jrow<(Rcpp::as<arma::mat>(ZKZtdifflist(irow)).n_rows/n); jrow++) {
           iicol=0;
           for(int icol=0; icol<(k+1); icol++) {
             for(int jcol=0; jcol<(Rcpp::as<arma::mat>(ZKZtdifflist(icol)).n_rows/n); jcol++) {
-              if (methodopt==1){
+              if (methodopt==1) {
                 AImat(iirow, iicol)=.5*trace(P*Rcpp::as<arma::mat>(ZKZtdifflist(irow)).rows(jrow*n,(jrow+1)*n-1)*P*Rcpp::as<arma::mat>(ZKZtdifflist(icol)).rows(jcol*n,(jcol+1)*n-1));
               }
-              if (methodopt==2){
+              if (methodopt==2) {
                 AImat(iirow, iicol)=.5*as_scalar(y.t()*P*Rcpp::as<arma::mat>(ZKZtdifflist(irow)).rows(jrow*n,(jrow+1)*n-1)*P*Rcpp::as<arma::mat>(ZKZtdifflist(icol)).rows(jcol*n,(jcol+1)*n-1)*P*y);
               }
               iicol=iicol+1;
@@ -2467,19 +2548,19 @@ List dermm(const arma::vec & y,const arma::mat & X,const Rcpp::List & Zlist, con
     }
     
     ///update current parameter vector
-    if (methodopt==0){
-      logsigmahatvec=logsigmahatvec+.25*dlogLvec;
+    if (methodopt==0) {
+      logsigmahatvec=logsigmahatvec+dlogLvec;
     }
     else {
-      logsigmahatvec=logsigmahatvec+.25*solve(AImat+eye(AImat.n_cols,AImat.n_cols),dlogLvec);
+      logsigmahatvec=logsigmahatvec+solve(AImat+eye(AImat.n_cols,AImat.n_cols),dlogLvec);
     }
     
     
     
-    if (itercountouter % 10==0){
+    if (itercountouter % 10==0) {
       for(int i=0; i<(k+1); i++) {
         
-        if (exp(logsigmahatvec(i))>1e-10){
+        if (exp(logsigmahatvec(i))>1e-10) {
           ZKZt=as<arma::mat>(ZKZtlist(i));
           
           //////////////////////Here estimate the covfunc parameter, recalculate things that depend on K
@@ -2489,14 +2570,14 @@ List dermm(const arma::vec & y,const arma::mat & X,const Rcpp::List & Zlist, con
           Omegainv=inv_sympdsamm(Omega,tolparinv);
           betahat=solve(X.t()*Omegainv*X, X.t()*Omegainv*y);
           ehat=y-X*betahat;
-          if (corfunc(i)){
-            if (!corfuncfixed(i)){
-              if (exp(logsigmahatvec(i))>1e-10){
-                if (i<k){
+          if (corfunc(i)) {
+            if (!corfuncfixed(i)) {
+              if (exp(logsigmahatvec(i))>1e-10) {
+                if (i<k) {
                   Kfunctiontemp= Rcpp::as<std::string>(Rcpp::as<Rcpp::List>(Klist(i))(0));
                   Kparamstemp= Rcpp::as<arma::vec>(corfuncparamslist(i));
                   Kdatatemp= Rcpp::as<arma::mat>(Rcpp::as<Rcpp::List>(Klist(i))(2));
-                } else { 
+                } else {
                   Kfunctiontemp= Rcpp::as<std::string>(R(0));
                   Kparamstemp= Rcpp::as<arma::vec>(corfuncparamslist(i));
                   Kdatatemp= Rcpp::as<arma::mat>(R(2));
@@ -2505,11 +2586,11 @@ List dermm(const arma::vec & y,const arma::mat & X,const Rcpp::List & Zlist, con
                 
                 //Rcpp::Rcout  << Ktemp.n_rows << std::endl << Ktemp.n_cols << std::endl;
                 
-                if (i<k){
+                if (i<k) {
                   Ztemp0=as<arma::mat>(Zlist(i));
                   Ztemp=Ztemp0;
                   ZKZt=Rcpp::as<arma::mat>(ZKZtlist(i));
-                }else{
+                } else {
                   Ztemp=W;
                   ZKZt=Rcpp::as<arma::mat>(ZKZtlist(i));
                 }
@@ -2524,7 +2605,7 @@ List dermm(const arma::vec & y,const arma::mat & X,const Rcpp::List & Zlist, con
                 ZKZtlist(i)= Ztemp*callViaString(Kparamstemp,Kdatatemp,Kfunctiontemp)*Ztemp.t();
                 
               }
-            } 
+            }
           }
         }
       }
@@ -2550,8 +2631,8 @@ List dermm(const arma::vec & y,const arma::mat & X,const Rcpp::List & Zlist, con
   List ZKList(k);
   
   for(int i=0; i<k; i++) {
-    if (corfunc(i)){
-      if (!corfuncfixed(i)){
+    if (corfunc(i)) {
+      if (!corfuncfixed(i)) {
         Ztemp0=as<arma::mat>(Zlist(i));
         Ztemp=Ztemp0;
         Kfunctiontemp= Rcpp::as<std::string>(Rcpp::as<Rcpp::List>(Klist(i))(0));
@@ -2569,7 +2650,7 @@ List dermm(const arma::vec & y,const arma::mat & X,const Rcpp::List & Zlist, con
         ZKList(i)=Ztemp*Ktemp;
       }
     }
-    else{
+    else {
       Ktemp=as<arma::mat>(Klist(i));
       Ztemp0=as<arma::mat>(Zlist(i));
       Ztemp=Ztemp0;
@@ -2595,12 +2676,12 @@ List dermm(const arma::vec & y,const arma::mat & X,const Rcpp::List & Zlist, con
   
   
   arma::vec uhat = (ZK).t()*Hinvhatehat;
-  if (geterrors==true){
+  if (geterrors==true) {
     arma::vec Covbetahat=inv(X.t()*Omegainv*X);
     arma::vec PEV=diagvec(pow(sum(exp(logsigmahatvec.subvec(0,k-1))),2)*ZK.t()*Omegainv*(ZK-X*Covbetahat*X.t()*Omegainv*ZK));
     double loglik=dmvnorm_arma(y, X*betahat,Omegainv, true, true);
     List outaa;
-    if (Hinv){
+    if (Hinv) {
       outaa=List::create(Rcpp::Named("Vu") =sum(exp(logsigmahatvec.subvec(0,k-1))),Rcpp::Named("Ve") =exp(logsigmahatvec(k)),Rcpp::Named("betahat") = betahat,Rcpp::Named("uhat") = uhat, Rcpp::Named("loglik") = loglik, Rcpp::Named("Hinv") = Hinvhat, Rcpp::Named("weights") = exp(logsigmahatvec.subvec(0,k-1))/sum(exp(logsigmahatvec.subvec(0,k-1))),Rcpp::Named("corfuncparamslist")=corfuncparamslist,Rcpp::Named("Covbetahat") = Covbetahat, Rcpp::Named("PEV") = PEV);
     }
     else {
@@ -2611,7 +2692,7 @@ List dermm(const arma::vec & y,const arma::mat & X,const Rcpp::List & Zlist, con
     arma::vec weights=as<arma::vec>(outaa["weights"]);
     
     arma::vec PEVinsert;
-    for (int i=0; i<k; i++){
+    for (int i=0; i<k; i++) {
       PEVinsert=join_cols(PEVinsert,sigmasqu*weights(i)*diagvec(as<arma::mat>(Klist(i))));
       
     }
@@ -2623,7 +2704,7 @@ List dermm(const arma::vec & y,const arma::mat & X,const Rcpp::List & Zlist, con
   } else {
     double loglik=dmvnorm_arma(y, X*betahat,Omegainv, true, true);
     List outaa;
-    if (Hinv){
+    if (Hinv) {
       outaa=List::create(Rcpp::Named("Vu")=sum(exp(logsigmahatvec.subvec(0,k-1))) ,Rcpp::Named("Ve") =exp(logsigmahatvec(k)),Rcpp::Named("betahat") = betahat,Rcpp::Named("uhat") = uhat, Rcpp::Named("loglik") = loglik, Rcpp::Named("Hinv") = Hinvhat, Rcpp::Named("weights") = exp(logsigmahatvec.subvec(0,k-1))/sum(exp(logsigmahatvec.subvec(0,k-1))),Rcpp::Named("corfuncparamslist")=corfuncparamslist);
       return outaa;
     }
@@ -2643,7 +2724,7 @@ List dermm(const arma::vec & y,const arma::mat & X,const Rcpp::List & Zlist, con
 // [[Rcpp::depends("RcppArmadillo")]]
 
 
-List mmmk(const arma::colvec & y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist,const  arma::mat & W, const arma::mat & R,const double & tolparconv=1e-10 ,const double & tolparinv=1e-10,const int & maxiter=200, bool geterrors=false, const double & lambda=0, bool Hinv=false){ 
+List mmmk(const arma::colvec & y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist,const  arma::mat & W, const arma::mat & R,const double & tolparconv=1e-10 ,const double & tolparinv=1e-10,const int & maxiter=200, bool geterrors=false, const double & lambda=0, bool Hinv=false) {
   /////////////
   
   int k=Zlist.size();
@@ -2667,7 +2748,7 @@ List mmmk(const arma::colvec & y,const arma::mat & X,const Rcpp::List & Zlist, c
   ///////////
   for(int i=0; i<k; i++) {
     Ktemp=as<arma::mat>(Klist(i));
-    dimvec(i) = Ktemp.n_rows ; 
+    dimvec(i) = Ktemp.n_rows ;
     dimen = dimen+dimvec(i);
     Ztemp=as<arma::mat>(Zlist(i));
     ZKZtlist(i)=Ztemp*Ktemp*Ztemp.t();
@@ -2680,7 +2761,7 @@ List mmmk(const arma::colvec & y,const arma::mat & X,const Rcpp::List & Zlist, c
   //Rcpp::Rcout  << "ZKZtlist:" << std::endl << as<arma::mat>(ZKZtlist(0)) << std::endl;
   //Rcpp::Rcout  << "ZKZtlist:" << std::endl << as<arma::mat>(ZKZtlist(1)) << std::endl;
   int itercountouter=0;
-  do{
+  do {
     itercountouter=itercountouter+1;
     Omega=zeros(n,n);
     for(int i=0; i<(k+1); i++) {
@@ -2691,12 +2772,12 @@ List mmmk(const arma::colvec & y,const arma::mat & X,const Rcpp::List & Zlist, c
     ehat=y-X*betahat;
     Omegainvehat=Omegainv*ehat;
     for(int i=0; i<(k+1); i++) {
-      if (sigmasqhatvec(i)>1e-10){
+      if (sigmasqhatvec(i)>1e-10) {
         ZKZt=as<arma::mat>(ZKZtlist(i));
         Omega0tr=sum(vectorise(Omegainv%ZKZt));
         multiplier=Omegainvehat.t()*ZKZt*Omegainvehat;
         
-        if (i<k){
+        if (i<k) {
           //Rcpp::Rcout  << lambda << std::endl;
           
           multiplier=multiplier/(Omega0tr+(-log10(1-lambda)));
@@ -2707,8 +2788,12 @@ List mmmk(const arma::colvec & y,const arma::mat & X,const Rcpp::List & Zlist, c
         }
         
         
-        if (multiplier(0)-1<0){multiplier(0)=1-1.5*(1-multiplier(0));}
-        if (multiplier(0)-1>0){multiplier(0)=1+1.5*(multiplier(0)-1);}
+        if (multiplier(0)-1<0) {
+          multiplier(0)=1-1.5*(1-multiplier(0));
+        }
+        if (multiplier(0)-1>0) {
+          multiplier(0)=1+1.5*(multiplier(0)-1);
+        }
         
         sigmasqhatvec(i)=sigmasqhatvec(i)*powf(multiplier(0),.5);
       }
@@ -2756,12 +2841,12 @@ List mmmk(const arma::colvec & y,const arma::mat & X,const Rcpp::List & Zlist, c
   
   
   arma::vec uhat = (ZK).t()*Hinvhatehat;
-  if (geterrors==true){
+  if (geterrors==true) {
     arma::vec Covbetahat=inv(X.t()*Omegainv*X);
     arma::vec PEV=diagvec(pow(sum(sigmasqhatvec.subvec(0,k-1)),2)*ZK.t()*Omegainv*(ZK-X*Covbetahat*X.t()*Omegainv*ZK));
     double loglik=dmvnorm_arma(y, X*betahat,Omegainv, true, true);
     List outaa;
-    if (Hinv){
+    if (Hinv) {
       outaa=List::create(Rcpp::Named("Vu") =sum(sigmasqhatvec.subvec(0,k-1)),Rcpp::Named("Ve")=sigmasqhatvec(k),Rcpp::Named("betahat") = betahat,Rcpp::Named("uhat") = uhat, Rcpp::Named("loglik") = loglik, Rcpp::Named("Hinv") = Hinvhat, Rcpp::Named("weights") = sigmasqhatvec.subvec(0,k-1)/sum(sigmasqhatvec.subvec(0,k-1)),Rcpp::Named("Covbetahat") = Covbetahat, Rcpp::Named("PEV") = PEV);
     }
     else {
@@ -2772,7 +2857,7 @@ List mmmk(const arma::colvec & y,const arma::mat & X,const Rcpp::List & Zlist, c
     arma::vec weights=as<arma::vec>(outaa["weights"]);
     
     arma::vec PEVinsert;
-    for (int i=0; i<k; i++){
+    for (int i=0; i<k; i++) {
       PEVinsert=join_cols(PEVinsert,sigmasqu*weights(i)*diagvec(as<arma::mat>(Klist(i))));
       
     }
@@ -2784,7 +2869,7 @@ List mmmk(const arma::colvec & y,const arma::mat & X,const Rcpp::List & Zlist, c
   } else {
     double loglik=dmvnorm_arma(y, X*betahat,Omegainv, true, true);
     List outaa;
-    if (Hinv){
+    if (Hinv) {
       outaa=List::create(Rcpp::Named("Vu")=sum(sigmasqhatvec.subvec(0,k-1)) ,Rcpp::Named("Ve") =sigmasqhatvec(k),Rcpp::Named("betahat") = betahat,Rcpp::Named("uhat") = uhat, Rcpp::Named("loglik") = loglik, Rcpp::Named("Hinv") = Hinvhat, Rcpp::Named("weights") = sigmasqhatvec.subvec(0,k-1)/sum(sigmasqhatvec.subvec(0,k-1)));
       return outaa;
     }
@@ -2801,7 +2886,7 @@ List mmmk(const arma::colvec & y,const arma::mat & X,const Rcpp::List & Zlist, c
 
 double minimfuncremlemmmk(double delta, arma::vec eta, arma::vec lambda, int n, int q) {
   int df = n - q;
-  double reml=df* log(sum(pow(eta,2)/(lambda + exp(delta)))) + sum(log(lambda + exp(delta)));
+  double reml=df*log(sum(pow(eta,2)/(lambda + exp(delta)))) + sum(log(lambda + exp(delta)));
   //Rcpp::Rcout  << "reml:" << std::endl <<reml << std::endl;
   reml = -0.5 * (reml + df + df * log(2 * M_PI/df));
   // Rcpp::Rcout  << "reml:" << std::endl <<reml << std::endl;
@@ -2842,7 +2927,7 @@ arma::vec glominremlbrentemmmk(double lower, double upper, double tolparconv, un
   double b = upper;
   double fa =zerofuncremlemmmk(a, eta,  lambda, n, q);	// calculated now to save function calls
   double fb = zerofuncremlemmmk(b, eta,  lambda, n, q);	// calculated now to save function calls
-  double fs = 0;		// initialize 
+  double fs = 0;		// initialize
   
   if (!(fa * fb < 0))
   {
@@ -2943,7 +3028,7 @@ double minimfunctionouter_reml(arma::vec  weights,const arma::vec  &y,
                                int  k,arma::vec  dimvec,int  dimen,int  q,
                                int  n,arma::mat  & spI,arma::mat  &S,double  offset,
                                List  &ZKZtList,List  &ZKList,
-                               const double  tolparconv=1e-9, const int  maxiter=1000){
+                               const double  tolparconv=1e-9, const int  maxiter=1000) {
   
   
   arma::mat ZKZt(n,n, fill::zeros);
@@ -2964,7 +3049,7 @@ double minimfunctionouter_reml(arma::vec  weights,const arma::vec  &y,
   
   arma::vec yandx(2);
   double m;
-  yandx=glominremlbrentemmmk(-25,30, tolparconv, 10000,eta, lambda,  n, q);
+  yandx=glominremlbrentemmmk(-(1e+2)/3,(1e+2)/3, tolparconv, maxiter,eta, lambda,  n, q);
   m=yandx(1);
   int df = n - q;
   double reml=(n - q) * log(sum(pow(eta,2)/(lambda + exp(m)))) + sum(log(lambda + exp(m)));
@@ -2980,7 +3065,7 @@ List minimfunctionouter_reml2(arma::vec  weights,const arma::vec  &y,const arma:
                               int  k,arma::vec  dimvec,int  dimen,int  q,
                               int  n,arma::mat  & spI,arma::mat  &S,double  offset,
                               List  &ZKZtList,arma::mat  ZK,
-                              const double  tolparconv=1e-9, const int  maxiter=1000, bool geterrors=false, bool Hinv=false){
+                              const double  tolparconv=1e-9, const int  maxiter=1000, bool geterrors=false, bool Hinv=false) {
   //Rcpp::Rcout  << "locy" << std::endl <<&y << std::endl;
   
   arma::mat ZKZt(n,n, fill::zeros);
@@ -3007,7 +3092,7 @@ List minimfunctionouter_reml2(arma::vec  weights,const arma::vec  &y,const arma:
   
   arma::vec yandx(2);
   double m;
-  yandx=glominremlbrentemmmk(-25,30, tolparconv, 10000,eta, lambda,  n, q);
+  yandx=glominremlbrentemmmk(-(1e+2)/3,(1e+2)/3, tolparconv, maxiter,eta, lambda,  n, q);
   m=yandx(1);
   int df = n - q;
   double reml=(n - q) * log(sum(pow(eta,2)/(lambda + exp(m)))) + sum(log(lambda + exp(m)));
@@ -3024,11 +3109,11 @@ List minimfunctionouter_reml2(arma::vec  weights,const arma::vec  &y,const arma:
   arma::mat Vinv = (1/sigmausqhat) * Hinvhat;
   double sigmaesqhat = exp(m) * sigmausqhat;
   arma::vec uhat = (ZK).t()*Hinvhatehat;
-  if (geterrors==true){
+  if (geterrors==true) {
     arma::vec Covbetahat=inv(X.t()*Vinv*X);
     arma::vec PEV=diagvec(pow(sigmausqhat,2)*ZK.t()*Vinv*(ZK-X*Covbetahat*X.t()*Vinv*ZK));
     List outaa;
-    if (Hinv){
+    if (Hinv) {
       outaa=List::create(Rcpp::Named("Vu") =sigmausqhat ,Rcpp::Named("Ve") =sigmaesqhat,Rcpp::Named("betahat") = betahat,Rcpp::Named("uhat") = uhat, Rcpp::Named("reml") = reml, Rcpp::Named("Hinv") = Hinvhat, Rcpp::Named("weights") = weights,Rcpp::Named("Covbetahat") = Covbetahat, Rcpp::Named("PEV") = PEV);
       return outaa;
     }
@@ -3038,7 +3123,7 @@ List minimfunctionouter_reml2(arma::vec  weights,const arma::vec  &y,const arma:
     }
   } else {
     List outaa;
-    if (Hinv){
+    if (Hinv) {
       outaa=List::create(Rcpp::Named("Vu") =sigmausqhat ,Rcpp::Named("Ve") =sigmaesqhat,Rcpp::Named("betahat") = betahat,Rcpp::Named("uhat") = uhat, Rcpp::Named("reml") = reml, Rcpp::Named("Hinv") = Hinvhat, Rcpp::Named("weights") = weights);
       return outaa;
     }
@@ -3099,12 +3184,12 @@ List simplex_reml(arma::vec start,int npar, double scale,const arma::vec  &y,int
   pn = scale*(sqrt(npar+1)-1+npar)/(npar*sqrt(2));
   qn = scale*(sqrt(npar+1)-1)/(npar*sqrt(2));
   
-  for (i=0;i<npar;i++) {
+  for (i=0; i<npar; i++) {
     v(0,i) = start[i];
   }
   
-  for (i=1;i<=npar;i++) {
-    for (j=0;j<npar;j++) {
+  for (i=1; i<=npar; i++) {
+    for (j=0; j<npar; j++) {
       if (i-1 == j) {
         v(i,j) = pn + start[j];
       }
@@ -3115,12 +3200,14 @@ List simplex_reml(arma::vec start,int npar, double scale,const arma::vec  &y,int
   }
   //Use the constraints, just scale so that 1>v[j]>0, sum(v[j])=1
   if (constrain== true) {
-    if (min(v.row(j))<0){
+    if (min(v.row(j))<0) {
       v.row(j)=(v.row(j)-min(v.row(j)))/sum((v.row(j)-min(v.row(j))));
-    } else {v.row(j)=(v.row(j))/sum((v.row(j)));}
-  } 
+    } else {
+      v.row(j)=(v.row(j))/sum((v.row(j)));
+    }
+  }
   /* find the initial function values */
-  for (j=0;j<=npar;j++) {
+  for (j=0; j<=npar; j++) {
     vvec=(v.row(j)).t();
     f[j] = minimfunctionouter_reml(vvec,y,
                                    k,dimvec,dimen,q,
@@ -3132,10 +3219,10 @@ List simplex_reml(arma::vec start,int npar, double scale,const arma::vec  &y,int
   ksimplex = npar+1;
   
   /* begin the main loop of the minimization */
-  for (itr=1;itr<=maxiter;itr++) {     
+  for (itr=1; itr<=maxiter; itr++) {
     /* find the index of the largest value */
     vg=0;
-    for (j=0;j<=npar;j++) {
+    for (j=0; j<=npar; j++) {
       if (f[j] > f[vg]) {
         vg = j;
       }
@@ -3143,7 +3230,7 @@ List simplex_reml(arma::vec start,int npar, double scale,const arma::vec  &y,int
     
     /* find the index of the smallest value */
     vs=0;
-    for (j=0;j<=npar;j++) {
+    for (j=0; j<=npar; j++) {
       if (f[j] < f[vs]) {
         vs = j;
       }
@@ -3151,16 +3238,16 @@ List simplex_reml(arma::vec start,int npar, double scale,const arma::vec  &y,int
     
     /* find the index of the second largest value */
     vh=vs;
-    for (j=0;j<=npar;j++) {
+    for (j=0; j<=npar; j++) {
       if (f[j] > f[vh] && f[j] < f[vg]) {
         vh = j;
       }
     }
     
     /* calculate the centroid */
-    for (j=0;j<=npar-1;j++) {
+    for (j=0; j<=npar-1; j++) {
       cent=0.0;
-      for (m=0;m<=npar;m++) {
+      for (m=0; m<=npar; m++) {
         if (m!=vg) {
           cent += v(m,j);
         }
@@ -3169,15 +3256,17 @@ List simplex_reml(arma::vec start,int npar, double scale,const arma::vec  &y,int
     }
     
     /* reflect vg to new vertex vr */
-    for (j=0;j<=npar-1;j++) {
+    for (j=0; j<=npar-1; j++) {
       /*vr[j] = (1+ALPHA)*vm[j] - ALPHA*v[vg][j];*/
       vr[j] = vm[j]+ALPHA*(vm[j]-v(vg,j));
     }
     if (constrain== true) {
-      if (min(vr)<0){
+      if (min(vr)<0) {
         vr=(vr-min(vr))/sum((vr-min(vr)));
-      } else {vr=(vr)/sum((vr));}
-    } 
+      } else {
+        vr=(vr)/sum((vr));
+      }
+    }
     
     fr = minimfunctionouter_reml(vr,y,
                                  k,dimvec,dimen,q,
@@ -3188,7 +3277,7 @@ List simplex_reml(arma::vec start,int npar, double scale,const arma::vec  &y,int
     ksimplex++;
     
     if (fr < f[vh] && fr >= f[vs]) {
-      for (j=0;j<=npar-1;j++) {
+      for (j=0; j<=npar-1; j++) {
         v(vg,j) = vr[j];
       }
       f[vg] = fr;
@@ -3196,15 +3285,17 @@ List simplex_reml(arma::vec start,int npar, double scale,const arma::vec  &y,int
     
     /* investigate a step further in this direction */
     if ( fr <  f[vs]) {
-      for (j=0;j<=npar-1;j++) {
+      for (j=0; j<=npar-1; j++) {
         /*ve[j] = GAMMA*vr[j] + (1-GAMMA)*vm[j];*/
         ve[j] = vm[j]+GAMMA*(vr[j]-vm[j]);
       }
       if (constrain== true) {
-        if (min(ve)<0){
+        if (min(ve)<0) {
           ve=(ve-min(ve))/sum((ve-min(ve)));
-        } else {ve=(ve)/sum((ve));}
-      } 
+        } else {
+          ve=(ve)/sum((ve));
+        }
+      }
       
       fe = minimfunctionouter_reml(ve,y,
                                    k,dimvec,dimen,q,
@@ -3214,18 +3305,18 @@ List simplex_reml(arma::vec start,int npar, double scale,const arma::vec  &y,int
       
       ksimplex++;
       
-      /* by making fe < fr as opposed to fe < f[vs], 			   
-                                              Rosenbrocks function takes 63 iterations as opposed 
+      /* by making fe < fr as opposed to fe < f[vs],
+                                              Rosenbrocks function takes 63 iterations as opposed
       to 64 when using double variables. */
       
       if (fe < fr) {
-        for (j=0;j<=npar-1;j++) {
+        for (j=0; j<=npar-1; j++) {
           v(vg,j)= ve[j];
         }
         f[vg] = fe;
       }
       else {
-        for (j=0;j<=npar-1;j++) {
+        for (j=0; j<=npar-1; j++) {
           v(vg,j) = vr[j];
         }
         f[vg] = fr;
@@ -3236,15 +3327,17 @@ List simplex_reml(arma::vec start,int npar, double scale,const arma::vec  &y,int
     if (fr >= f[vh]) {
       if (fr < f[vg] && fr >= f[vh]) {
         /* perform outside contraction */
-        for (j=0;j<=npar-1;j++) {
+        for (j=0; j<=npar-1; j++) {
           /*vc[j] = BETA*v[vg][j] + (1-BETA)*vm[j];*/
           vc[j] = vm[j]+BETA*(vr[j]-vm[j]);
         }
         if (constrain== true) {
-          if (min(vc)<0){
+          if (min(vc)<0) {
             vc=(vc-min(vc))/sum((vc-min(vc)));
-          } else {vc=(vc)/sum((vc));}
-        } 
+          } else {
+            vc=(vc)/sum((vc));
+          }
+        }
         
         fc= minimfunctionouter_reml(vc,y,
                                     k,dimvec,dimen,q,
@@ -3255,15 +3348,17 @@ List simplex_reml(arma::vec start,int npar, double scale,const arma::vec  &y,int
       }
       else {
         /* perform inside contraction */
-        for (j=0;j<=npar-1;j++) {
+        for (j=0; j<=npar-1; j++) {
           /*vc[j] = BETA*v[vg][j] + (1-BETA)*vm[j];*/
           vc[j] = vm[j]-BETA*(vm[j]-v(vg,j));
         }
         if (constrain== true) {
-          if (min(vc)<0){
+          if (min(vc)<0) {
             vc=(vc-min(vc))/sum((vc-min(vc)));
-          } else {vc=(vc)/sum((vc));}
-        } 
+          } else {
+            vc=(vc)/sum((vc));
+          }
+        }
         fc= minimfunctionouter_reml(vc,y,
                                     k,dimvec,dimen,q,
                                     n,spI,S,offset,
@@ -3274,29 +3369,31 @@ List simplex_reml(arma::vec start,int npar, double scale,const arma::vec  &y,int
       
       
       if (fc < f[vg]) {
-        for (j=0;j<=npar-1;j++) {
+        for (j=0; j<=npar-1; j++) {
           v(vg,j) = vc[j];
         }
         f[vg] = fc;
       }
       /* at this point the contraction is not successful,
-      we must halve the distance from vs to all the 
+      we must halve the distance from vs to all the
       vertices of the simplex and then continue.
-      10/31/97 - modified to account for ALL vertices. 
+      10/31/97 - modified to account for ALL vertices.
       */
       else {
-        for (row=0;row<=npar;row++) {
+        for (row=0; row<=npar; row++) {
           if (row != vs) {
-            for (j=0;j<=npar-1;j++) {
+            for (j=0; j<=npar-1; j++) {
               v(row,j) = v(vs,j)+(v(row,j)-v(vs,j))/2.0;
             }
           }
         }
         if (constrain== true) {
-          if (min(v.row(vg))<0){
+          if (min(v.row(vg))<0) {
             v.row(vg)=(v.row(vg)-min(v.row(vg)))/sum((v.row(vg)-min(v.row(vg))));
-          } else {v.row(vg)=(v.row(vg))/sum((v.row(vg)));}
-        } 
+          } else {
+            v.row(vg)=(v.row(vg))/sum((v.row(vg)));
+          }
+        }
         f[vg] =minimfunctionouter_reml(vvec,y,
                                        k,dimvec,dimen,q,
                                        n,spI,S,offset,
@@ -3305,10 +3402,12 @@ List simplex_reml(arma::vec start,int npar, double scale,const arma::vec  &y,int
         ksimplex++;
         
         if (constrain== true) {
-          if (min(v.row(vh))<0){
+          if (min(v.row(vh))<0) {
             v.row(vh)=(v.row(vh)-min(v.row(vh)))/sum((v.row(vh)-min(v.row(vh))));
-          } else {v.row(vh)=(v.row(vh))/sum((v.row(vh)));}
-        } 
+          } else {
+            v.row(vh)=(v.row(vh))/sum((v.row(vh)));
+          }
+        }
         vvec=(v.row(vh)).t();
         f[vh] =minimfunctionouter_reml(vvec,y,
                                        k,dimvec,dimen,q,
@@ -3325,12 +3424,12 @@ List simplex_reml(arma::vec start,int npar, double scale,const arma::vec  &y,int
     
     /* test for convergence */
     fsum = 0.0;
-    for (j=0;j<=npar;j++) {
+    for (j=0; j<=npar; j++) {
       fsum += f[j];
     }
     favg = fsum/(npar+1);
     s = 0.0;
-    for (j=0;j<=npar;j++) {
+    for (j=0; j<=npar; j++) {
       s += pow((f[j]-favg),2.0)/(npar);
     }
     s = sqrt(s);
@@ -3341,21 +3440,22 @@ List simplex_reml(arma::vec start,int npar, double scale,const arma::vec  &y,int
   
   /* find the index of the smallest value */
   vs=0;
-  for (j=0;j<=npar;j++) {
+  for (j=0; j<=npar; j++) {
     if (f[j] < f[vs]) {
       vs = j;
     }
   }
   
   
-  for (j=0;j<npar;j++) {
+  for (j=0; j<npar; j++) {
     
     start[j] = v(vs,j);
   }
   vvec=(v.row(vs)).t();
   
-  if (sum(vvec)<=0 || ISNAN(vvec(0))){
-    vvec=ones(k)/k;}
+  if (sum(vvec)<=0 || std::isnan(vvec(0))) {
+    vvec=ones(k)/k;
+  }
   minval =minimfunctionouter_reml(vvec,y,
                                   k,dimvec,dimen,q,
                                   n,spI,S,offset,
@@ -3374,7 +3474,7 @@ List simplex_reml(arma::vec start,int npar, double scale,const arma::vec  &y,int
 
 // [[Rcpp::depends("RcppArmadillo")]]
 
-List emmremlmk_arma(const arma::vec  y,const arma::mat  X,const Rcpp::List  Zlist, const Rcpp::List  Klist, const double  tolparconv=1e-9, const int  maxiter=1000, bool geterrors=false, bool Hinv=false){
+List emmremlmk_arma(const arma::vec  y,const arma::mat  X,const Rcpp::List  Zlist, const Rcpp::List  Klist, const double  tolparconv=1e-9, const int  maxiter=1000, bool geterrors=false, bool Hinv=false) {
   //Rcpp::Rcout  << "locy" << std::endl <<&y << std::endl;
   int k=Zlist.length();
   arma::vec dimvec(k);
@@ -3394,7 +3494,7 @@ List emmremlmk_arma(const arma::vec  y,const arma::mat  X,const Rcpp::List  Zlis
   ///////////
   for(int i=0; i<k; i++) {
     Ktemp=as<arma::mat>(Klist(i));
-    dimvec(i) = Ktemp.n_rows ; 
+    dimvec(i) = Ktemp.n_rows ;
     dimen = dimen+dimvec(i);
     Ztemp=as<arma::mat>(Zlist(i));
     ZKZtList(i)=Ztemp*Ktemp*Ztemp.t();
@@ -3410,7 +3510,7 @@ List emmremlmk_arma(const arma::vec  y,const arma::mat  X,const Rcpp::List  Zlis
   }
   
   arma::vec startvec=ones(k)/k;
-  List minimout=simplex_reml(startvec,k,.1,y, 
+  List minimout=simplex_reml(startvec,k,.1,y,
                              k,dimvec,dimen,q,
                              n,spI,S,offset,
                              ZKZtList, ZKList,
@@ -3428,7 +3528,7 @@ List emmremlmk_arma(const arma::vec  y,const arma::mat  X,const Rcpp::List  Zlis
     arma::vec PEV=as<arma::vec>(outaa["PEV"]);
     
     arma::vec PEVinsert;
-    for (int i=0; i<k; i++){
+    for (int i=0; i<k; i++) {
       PEVinsert=join_cols(PEVinsert,sigmasqu*weights(i)*diagvec(as<arma::mat>(Klist(i))));
       
     }
@@ -3439,7 +3539,7 @@ List emmremlmk_arma(const arma::vec  y,const arma::mat  X,const Rcpp::List  Zlis
   } else {
     return outaa;
   }
-}  
+}
 
 
 
@@ -3452,7 +3552,7 @@ arma::vec glominmlbrentemmmk(double lower, double upper, double tolparconv, unsi
   double b = upper;
   double fa =zerofuncmlemmmk(a, eta,  lambda, epsilon, n, q);	// calculated now to save function calls
   double fb = zerofuncmlemmmk(b, eta,  lambda, epsilon,  n, q);	// calculated now to save function calls
-  double fs = 0;		// initialize 
+  double fs = 0;		// initialize
   
   if (!(fa * fb < 0))
   {
@@ -3553,7 +3653,7 @@ double minimfunctionouter_ml(arma::vec  weights,const arma::vec  &y,
                              int  k,arma::vec  dimvec,int  dimen,int  q,
                              int  n,arma::mat  &spI,arma::mat  &S,double  offset,
                              List  &ZKZtList,List  &ZKList,
-                             const double  tolparconv=1e-9, const int  maxiter=1000){
+                             const double  tolparconv=1e-9, const int  maxiter=1000) {
   
   
   arma::mat ZKZt(n,n, fill::zeros);
@@ -3577,7 +3677,7 @@ double minimfunctionouter_ml(arma::vec  weights,const arma::vec  &y,
   
   arma::vec yandx(2);
   double m;
-  yandx=glominmlbrentemmmk(-25,30, tolparconv, 10000,eta, lambda,epsilon,  n, q);
+  yandx=glominmlbrentemmmk(-(1e+2)/3,(1e+2)/3, tolparconv, maxiter,eta, lambda,epsilon,  n, q);
   m=yandx(1);
   double ml=minimfuncmlemmmk(m,eta, lambda,epsilon, n,q);
   return ml;
@@ -3590,7 +3690,7 @@ List minimfunctionouter_ml2(arma::vec  weights,const arma::vec  &y,const arma::m
                             int  k,arma::vec  dimvec,int  dimen,int  q,
                             int  n,arma::mat  &spI,arma::mat  &S,double  offset,
                             List  &ZKZtList,arma::mat  ZK,
-                            const double  tolparconv=1e-9, const int  maxiter=1000, bool geterrors=false, bool Hinv=false){
+                            const double  tolparconv=1e-9, const int  maxiter=1000, bool geterrors=false, bool Hinv=false) {
   
   arma::mat ZKZt(n,n, fill::zeros);
   
@@ -3619,7 +3719,7 @@ List minimfunctionouter_ml2(arma::vec  weights,const arma::vec  &y,const arma::m
   
   arma::vec yandx(2);
   double m;
-  yandx=glominmlbrentemmmk(-25,30, tolparconv, 10000,eta, lambda,  epsilon, n, q);
+  yandx=glominmlbrentemmmk(-(1e+2)/3,(1e+2)/3, tolparconv, maxiter,eta, lambda,  epsilon, n, q);
   m=yandx(1);
   
   
@@ -3637,11 +3737,11 @@ List minimfunctionouter_ml2(arma::vec  weights,const arma::vec  &y,const arma::m
   arma::mat Vinv = (1/sigmausqhat) * Hinvhat;
   double sigmaesqhat = exp(m) * sigmausqhat;
   arma::vec uhat = (ZK).t()*Hinvhatehat;
-  if (geterrors==true){
+  if (geterrors==true) {
     arma::vec Covbetahat=inv(X.t()*Vinv*X);
     arma::vec PEV=diagvec(pow(sigmausqhat,2)*ZK.t()*Vinv*(ZK-X*Covbetahat*X.t()*Vinv*ZK));
     List outaa;
-    if (Hinv){
+    if (Hinv) {
       outaa=List::create(Rcpp::Named("Vu") =sigmausqhat ,Rcpp::Named("Ve") =sigmaesqhat,Rcpp::Named("betahat") = betahat,Rcpp::Named("uhat") = uhat, Rcpp::Named("loglik") = loglik, Rcpp::Named("Hinv") = Hinvhat, Rcpp::Named("weights") = weights,Rcpp::Named("Covbetahat") = Covbetahat, Rcpp::Named("PEV") = PEV);
       return outaa;
     }
@@ -3651,7 +3751,7 @@ List minimfunctionouter_ml2(arma::vec  weights,const arma::vec  &y,const arma::m
     }
   } else {
     List outaa;
-    if (Hinv){
+    if (Hinv) {
       outaa=List::create(Rcpp::Named("Vu") =sigmausqhat ,Rcpp::Named("Ve") =sigmaesqhat,Rcpp::Named("betahat") = betahat,Rcpp::Named("uhat") = uhat, Rcpp::Named("loglik") = loglik, Rcpp::Named("Hinv") = Hinvhat, Rcpp::Named("weights") = weights);
       return outaa;
     }
@@ -3714,12 +3814,12 @@ List simplex_ml(arma::vec start,int npar, double scale,const arma::vec  &y,int  
   pn = scale*(sqrt(npar+1)-1+npar)/(npar*sqrt(2));
   qn = scale*(sqrt(npar+1)-1)/(npar*sqrt(2));
   
-  for (i=0;i<npar;i++) {
+  for (i=0; i<npar; i++) {
     v(0,i) = start[i];
   }
   
-  for (i=1;i<=npar;i++) {
-    for (j=0;j<npar;j++) {
+  for (i=1; i<=npar; i++) {
+    for (j=0; j<npar; j++) {
       if (i-1 == j) {
         v(i,j) = pn + start[j];
       }
@@ -3730,12 +3830,14 @@ List simplex_ml(arma::vec start,int npar, double scale,const arma::vec  &y,int  
   }
   //Use the constraints, just scale so that 1>v[j]>0, sum(v[j])=1
   if (constrain== true) {
-    if (min(v.row(j))<0){
+    if (min(v.row(j))<0) {
       v.row(j)=(v.row(j)-min(v.row(j)))/sum((v.row(j)-min(v.row(j))));
-    } else {v.row(j)=(v.row(j))/sum((v.row(j)));}
-  } 
+    } else {
+      v.row(j)=(v.row(j))/sum((v.row(j)));
+    }
+  }
   /* find the initial function values */
-  for (j=0;j<=npar;j++) {
+  for (j=0; j<=npar; j++) {
     vvec=(v.row(j)).t();
     f[j] = minimfunctionouter_ml(vvec,y,
                                  k,dimvec,dimen,q,
@@ -3747,10 +3849,10 @@ List simplex_ml(arma::vec start,int npar, double scale,const arma::vec  &y,int  
   ksimplex = npar+1;
   
   /* begin the main loop of the minimization */
-  for (itr=1;itr<=maxiter;itr++) {     
+  for (itr=1; itr<=maxiter; itr++) {
     /* find the index of the largest value */
     vg=0;
-    for (j=0;j<=npar;j++) {
+    for (j=0; j<=npar; j++) {
       if (f[j] > f[vg]) {
         vg = j;
       }
@@ -3758,7 +3860,7 @@ List simplex_ml(arma::vec start,int npar, double scale,const arma::vec  &y,int  
     
     /* find the index of the smallest value */
     vs=0;
-    for (j=0;j<=npar;j++) {
+    for (j=0; j<=npar; j++) {
       if (f[j] < f[vs]) {
         vs = j;
       }
@@ -3766,16 +3868,16 @@ List simplex_ml(arma::vec start,int npar, double scale,const arma::vec  &y,int  
     
     /* find the index of the second largest value */
     vh=vs;
-    for (j=0;j<=npar;j++) {
+    for (j=0; j<=npar; j++) {
       if (f[j] > f[vh] && f[j] < f[vg]) {
         vh = j;
       }
     }
     
     /* calculate the centroid */
-    for (j=0;j<=npar-1;j++) {
+    for (j=0; j<=npar-1; j++) {
       cent=0.0;
-      for (m=0;m<=npar;m++) {
+      for (m=0; m<=npar; m++) {
         if (m!=vg) {
           cent += v(m,j);
         }
@@ -3784,15 +3886,17 @@ List simplex_ml(arma::vec start,int npar, double scale,const arma::vec  &y,int  
     }
     
     /* reflect vg to new vertex vr */
-    for (j=0;j<=npar-1;j++) {
+    for (j=0; j<=npar-1; j++) {
       /*vr[j] = (1+ALPHA)*vm[j] - ALPHA*v[vg][j];*/
       vr[j] = vm[j]+ALPHA*(vm[j]-v(vg,j));
     }
     if (constrain== true) {
-      if (min(vr)<0){
+      if (min(vr)<0) {
         vr=(vr-min(vr))/sum((vr-min(vr)));
-      } else {vr=(vr)/sum((vr));}
-    } 
+      } else {
+        vr=(vr)/sum((vr));
+      }
+    }
     
     fr = minimfunctionouter_ml(vr,y,
                                k,dimvec,dimen,q,
@@ -3803,7 +3907,7 @@ List simplex_ml(arma::vec start,int npar, double scale,const arma::vec  &y,int  
     ksimplex++;
     
     if (fr < f[vh] && fr >= f[vs]) {
-      for (j=0;j<=npar-1;j++) {
+      for (j=0; j<=npar-1; j++) {
         v(vg,j) = vr[j];
       }
       f[vg] = fr;
@@ -3811,15 +3915,17 @@ List simplex_ml(arma::vec start,int npar, double scale,const arma::vec  &y,int  
     
     /* investigate a step further in this direction */
     if ( fr <  f[vs]) {
-      for (j=0;j<=npar-1;j++) {
+      for (j=0; j<=npar-1; j++) {
         /*ve[j] = GAMMA*vr[j] + (1-GAMMA)*vm[j];*/
         ve[j] = vm[j]+GAMMA*(vr[j]-vm[j]);
       }
       if (constrain== true) {
-        if (min(ve)<0){
+        if (min(ve)<0) {
           ve=(ve-min(ve))/sum((ve-min(ve)));
-        } else {ve=(ve)/sum((ve));}
-      } 
+        } else {
+          ve=(ve)/sum((ve));
+        }
+      }
       
       fe = minimfunctionouter_ml(ve,y,
                                  k,dimvec,dimen,q,
@@ -3829,18 +3935,18 @@ List simplex_ml(arma::vec start,int npar, double scale,const arma::vec  &y,int  
       
       ksimplex++;
       
-      /* by making fe < fr as opposed to fe < f[vs], 			   
-                                              Rosenbrocks function takes 63 iterations as opposed 
+      /* by making fe < fr as opposed to fe < f[vs],
+                                              Rosenbrocks function takes 63 iterations as opposed
       to 64 when using double variables. */
       
       if (fe < fr) {
-        for (j=0;j<=npar-1;j++) {
+        for (j=0; j<=npar-1; j++) {
           v(vg,j)= ve[j];
         }
         f[vg] = fe;
       }
       else {
-        for (j=0;j<=npar-1;j++) {
+        for (j=0; j<=npar-1; j++) {
           v(vg,j) = vr[j];
         }
         f[vg] = fr;
@@ -3851,15 +3957,17 @@ List simplex_ml(arma::vec start,int npar, double scale,const arma::vec  &y,int  
     if (fr >= f[vh]) {
       if (fr < f[vg] && fr >= f[vh]) {
         /* perform outside contraction */
-        for (j=0;j<=npar-1;j++) {
+        for (j=0; j<=npar-1; j++) {
           /*vc[j] = BETA*v[vg][j] + (1-BETA)*vm[j];*/
           vc[j] = vm[j]+BETA*(vr[j]-vm[j]);
         }
         if (constrain== true) {
-          if (min(vc)<0){
+          if (min(vc)<0) {
             vc=(vc-min(vc))/sum((vc-min(vc)));
-          } else {vc=(vc)/sum((vc));}
-        } 
+          } else {
+            vc=(vc)/sum((vc));
+          }
+        }
         
         fc= minimfunctionouter_ml(vc,y,
                                   k,dimvec,dimen,q,
@@ -3870,15 +3978,17 @@ List simplex_ml(arma::vec start,int npar, double scale,const arma::vec  &y,int  
       }
       else {
         /* perform inside contraction */
-        for (j=0;j<=npar-1;j++) {
+        for (j=0; j<=npar-1; j++) {
           /*vc[j] = BETA*v[vg][j] + (1-BETA)*vm[j];*/
           vc[j] = vm[j]-BETA*(vm[j]-v(vg,j));
         }
         if (constrain== true) {
-          if (min(vc)<0){
+          if (min(vc)<0) {
             vc=(vc-min(vc))/sum((vc-min(vc)));
-          } else {vc=(vc)/sum((vc));}
-        } 
+          } else {
+            vc=(vc)/sum((vc));
+          }
+        }
         fc= minimfunctionouter_ml(vc,y,
                                   k,dimvec,dimen,q,
                                   n,spI,S,offset,
@@ -3889,29 +3999,31 @@ List simplex_ml(arma::vec start,int npar, double scale,const arma::vec  &y,int  
       
       
       if (fc < f[vg]) {
-        for (j=0;j<=npar-1;j++) {
+        for (j=0; j<=npar-1; j++) {
           v(vg,j) = vc[j];
         }
         f[vg] = fc;
       }
       /* at this point the contraction is not successful,
-      we must halve the distance from vs to all the 
+      we must halve the distance from vs to all the
       vertices of the simplex and then continue.
-      10/31/97 - modified to account for ALL vertices. 
+      10/31/97 - modified to account for ALL vertices.
       */
       else {
-        for (row=0;row<=npar;row++) {
+        for (row=0; row<=npar; row++) {
           if (row != vs) {
-            for (j=0;j<=npar-1;j++) {
+            for (j=0; j<=npar-1; j++) {
               v(row,j) = v(vs,j)+(v(row,j)-v(vs,j))/2.0;
             }
           }
         }
         if (constrain== true) {
-          if (min(v.row(vg))<0){
+          if (min(v.row(vg))<0) {
             v.row(vg)=(v.row(vg)-min(v.row(vg)))/sum((v.row(vg)-min(v.row(vg))));
-          } else {v.row(vg)=(v.row(vg))/sum((v.row(vg)));}
-        } 
+          } else {
+            v.row(vg)=(v.row(vg))/sum((v.row(vg)));
+          }
+        }
         f[vg] =minimfunctionouter_ml(vvec,y,
                                      k,dimvec,dimen,q,
                                      n,spI,S,offset,
@@ -3920,10 +4032,12 @@ List simplex_ml(arma::vec start,int npar, double scale,const arma::vec  &y,int  
         ksimplex++;
         
         if (constrain== true) {
-          if (min(v.row(vh))<0){
+          if (min(v.row(vh))<0) {
             v.row(vh)=(v.row(vh)-min(v.row(vh)))/sum((v.row(vh)-min(v.row(vh))));
-          } else {v.row(vh)=(v.row(vh))/sum((v.row(vh)));}
-        } 
+          } else {
+            v.row(vh)=(v.row(vh))/sum((v.row(vh)));
+          }
+        }
         vvec=(v.row(vh)).t();
         f[vh] =minimfunctionouter_ml(vvec,y,
                                      k,dimvec,dimen,q,
@@ -3940,12 +4054,12 @@ List simplex_ml(arma::vec start,int npar, double scale,const arma::vec  &y,int  
     
     /* test for convergence */
     fsum = 0.0;
-    for (j=0;j<=npar;j++) {
+    for (j=0; j<=npar; j++) {
       fsum += f[j];
     }
     favg = fsum/(npar+1);
     s = 0.0;
-    for (j=0;j<=npar;j++) {
+    for (j=0; j<=npar; j++) {
       s += pow((f[j]-favg),2.0)/(npar);
     }
     s = sqrt(s);
@@ -3956,21 +4070,22 @@ List simplex_ml(arma::vec start,int npar, double scale,const arma::vec  &y,int  
   
   /* find the index of the smallest value */
   vs=0;
-  for (j=0;j<=npar;j++) {
+  for (j=0; j<=npar; j++) {
     if (f[j] < f[vs]) {
       vs = j;
     }
   }
   
   
-  for (j=0;j<npar;j++) {
+  for (j=0; j<npar; j++) {
     
     start[j] = v(vs,j);
   }
   vvec=(v.row(vs)).t();
   
-  if (sum(vvec)<=0 || ISNAN(vvec(0))){
-    vvec=ones(k)/k;}
+  if (sum(vvec)<=0 || std::isnan(vvec(0))) {
+    vvec=ones(k)/k;
+  }
   minval =minimfunctionouter_ml(vvec,y,
                                 k,dimvec,dimen,q,
                                 n,spI,S,offset,
@@ -3990,7 +4105,7 @@ List simplex_ml(arma::vec start,int npar, double scale,const arma::vec  &y,int  
 
 // [[Rcpp::depends("RcppArmadillo")]]
 
-List emmmlmk_arma(const arma::vec  y,const arma::mat  X,const Rcpp::List  Zlist, const Rcpp::List  Klist, const double  tolparconv=1e-9, const int  maxiter=1000, bool geterrors=false, bool Hinv=false){
+List emmmlmk_arma(const arma::vec  y,const arma::mat  X,const Rcpp::List  Zlist, const Rcpp::List  Klist, const double  tolparconv=1e-9, const int  maxiter=1000, bool geterrors=false, bool Hinv=false) {
   int k=Zlist.length();
   arma::vec dimvec(k);
   int dimen=0;
@@ -4009,7 +4124,7 @@ List emmmlmk_arma(const arma::vec  y,const arma::mat  X,const Rcpp::List  Zlist,
   ///////////
   for(int i=0; i<k; i++) {
     Ktemp=as<arma::mat>(Klist(i));
-    dimvec(i) = Ktemp.n_rows ; 
+    dimvec(i) = Ktemp.n_rows ;
     dimen = dimen+dimvec(i);
     Ztemp=as<arma::mat>(Zlist(i));
     ZKZtList(i)=Ztemp*Ktemp*Ztemp.t();
@@ -4025,7 +4140,7 @@ List emmmlmk_arma(const arma::vec  y,const arma::mat  X,const Rcpp::List  Zlist,
   }
   
   arma::vec startvec=ones(k)/k;
-  List minimout=simplex_ml(startvec,k,.1,y, 
+  List minimout=simplex_ml(startvec,k,.1,y,
                            k,dimvec,dimen,q,
                            n,spI,S,offset,
                            ZKZtList, ZKList,
@@ -4036,13 +4151,13 @@ List emmmlmk_arma(const arma::vec  y,const arma::mat  X,const Rcpp::List  Zlist,
                                     n,spI,S,offset,
                                     ZKZtList,  ZK,
                                     tolparconv,maxiter, geterrors, Hinv);
-  if (geterrors==true){
+  if (geterrors==true) {
     double sigmasqu=outaa["Vu"];
     arma::vec weights=as<arma::vec>(outaa["weights"]);
     arma::vec PEV=as<arma::vec>(outaa["PEV"]);
     
     arma::vec PEVinsert;
-    for (int i=0; i<k; i++){
+    for (int i=0; i<k; i++) {
       PEVinsert=join_cols(PEVinsert,sigmasqu*weights(i)*diagvec(as<arma::mat>(Klist(i))));
       
     }
@@ -4051,10 +4166,10 @@ List emmmlmk_arma(const arma::vec  y,const arma::mat  X,const Rcpp::List  Zlist,
     
     return outaa;
   } else {
-    return outaa; 
+    return outaa;
   }
   
-}  
+}
 
 
 
@@ -4063,13 +4178,15 @@ List emmmlmk_arma(const arma::vec  y,const arma::mat  X,const Rcpp::List  Zlist,
 // [[Rcpp::depends("RcppArmadillo")]]
 
 
-List emmmk(const arma::vec  y,const arma::mat  X,const Rcpp::List  Zlist, const Rcpp::List  Klist, const double  tolparconv=1e-9, const int  maxiter=1000, bool REML=true, bool geterrors=false, bool Hinv=false){ 
+List emmmk(const arma::vec  y,const arma::mat  X,const Rcpp::List  Zlist, const Rcpp::List  Klist, const double  tolparconv=1e-9, const int  maxiter=1000, bool REML=true, bool geterrors=false, bool Hinv=false) {
   Rcpp::List out;
   
-  if (REML==true){out=emmremlmk_arma(y,X, Zlist,Klist, tolparconv, maxiter, geterrors, Hinv);
+  if (REML==true) {
+    out=emmremlmk_arma(y,X, Zlist,Klist, tolparconv, maxiter, geterrors, Hinv);
     
   }
-  else {out=emmmlmk_arma(y,X, Zlist,Klist, tolparconv, maxiter, geterrors, Hinv);
+  else {
+    out=emmmlmk_arma(y,X, Zlist,Klist, tolparconv, maxiter, geterrors, Hinv);
   }
   
   return out;
@@ -4096,14 +4213,14 @@ arma::vec loglikfuncemmremlmv_arma(const arma::mat & Y,const arma::mat & X,const
     V=V+kron(ZKZt,Vgt);
   }
   loglik=dmvnorm_arma(arma::vectorise(Y),arma::vectorise(X*B),V,true, false);
-  return loglik; 
+  return loglik;
 }
 
 
 // [[Rcpp::depends("RcppArmadillo")]]
 
 
-List emmmv(const arma::mat & Yt,const arma::mat & Xt,const arma::mat & Z, const arma::mat & K,const double & tolparconv=1e-8,const double tolparinv=1e-8,const int & maxiter=500,const bool & geterrors=false, bool Hinv=false){ 
+List emmmv(const arma::mat & Yt,const arma::mat & Xt,const arma::mat & Z, const arma::mat & K,const double & tolparconv=1e-8,const double tolparinv=1e-8,const int & maxiter=500,const bool & geterrors=false, bool Hinv=false) {
   arma::mat Y=Yt.t();
   arma::mat X=Xt.t();
   arma::mat  KZt = K*Z.t();
@@ -4155,19 +4272,19 @@ List emmmv(const arma::mat & Yt,const arma::mat & Xt,const arma::mat & Z, const 
     Gt.zeros();
     for (int i = 0; i < n; i++) {
       Vlt=Eigenval2(i) * Vgt + Vet;
-      Gt.col(i)=Eigenval2(i) * Vgt * arma::solve(Vlt+tolparinv*eye(Vlt.n_cols,Vlt.n_cols) , (Ytrans.col(i) - Bt * Xtrans.col(i))); 
+      Gt.col(i)=Eigenval2(i) * Vgt * arma::solve(Vlt+tolparinv*eye(Vlt.n_cols,Vlt.n_cols) , (Ytrans.col(i) - Bt * Xtrans.col(i)));
       Sigmalt=Eigenval2(i) * Vgt;
       Sigmalt=Sigmalt- (Sigmalt) * arma::solve(Vlt+tolparinv*eye(Vlt.n_cols,Vlt.n_cols) ,Sigmalt);
       LL(i)=Rcpp::List::create(Sigmalt);
     }
     
-    Bt = (Ytrans - Gt) * XttinvXtXtt; 
+    Bt = (Ytrans - Gt) * XttinvXtXtt;
     Vgtsum.zeros();
     Vgt.zeros();
     for (int i = 0; i < n; i++) {
       LLi=Rcpp::as<Rcpp::List>(LL(i));
       Sigmalti=Rcpp::as<arma::mat>(LLi(0));
-      Vgtsum = Vgtsum+(1/(Eigenval2(i)))*(Gt.col(i)*(Gt.col(i)).t()+Sigmalti); 
+      Vgtsum = Vgtsum+(1/(Eigenval2(i)))*(Gt.col(i)*(Gt.col(i)).t()+Sigmalti);
     }
     Vgt=Vgtsum/n;
     
@@ -4187,7 +4304,7 @@ List emmmv(const arma::mat & Yt,const arma::mat & Xt,const arma::mat & Z, const 
     convnum=fabs(sum(diagvec(Vet - Vetm1)))/fabs(1+sum(diagvec(Vetm1)));
     //Rcpp::Rcout  << "convnum:" << std::endl << convnum << std::endl;
   } while ((convnum >tolparconv) && (counter<maxiter));
-  Bt = (Ytrans - Gt) * XttinvXtXtt; 
+  Bt = (Ytrans - Gt) * XttinvXtXtt;
   int iterinv=0;
   do {
     iterinv=iterinv+1;
@@ -4218,7 +4335,7 @@ List emmmv(const arma::mat & Yt,const arma::mat & Xt,const arma::mat & Z, const 
   arma::mat ZKforvec=Zforvec * varvecG;
   arma::mat Gpred(d,N);
   Gpred= reshape(gpred, d, N);
-  if (geterrors==true){
+  if (geterrors==true) {
     arma::mat Xforvec=kron(X.t(),eye(d,d));
     arma::mat varBhat = Xforvec.t()*HobsInv*Xforvec;
     iterinv=0;
@@ -4235,23 +4352,23 @@ List emmmv(const arma::mat & Yt,const arma::mat & Xt,const arma::mat & Z, const 
     arma::vec PEV= diagvec(varvecG) - varGhat;
     arma::vec loglik=loglikfuncemmremlmv_arma(Y.t(),X.t(),List::create(Rcpp::Named("Z") =Z), List::create(Rcpp::Named("K") =K),List::create(Rcpp::Named("Vgt") =Vgt),Vet,Bt.t());
     List outaa;
-    if (Hinv){
-      outaa=List::create(Rcpp::Named("Vgt") =Vgt,Rcpp::Named("Vet") =Vet,Rcpp::Named("Bt") =Bt, Rcpp::Named("Gpred")=Gpred,Rcpp::Named("loglik")=loglik,  Rcpp::Named("varBhat")=varBhat, Rcpp::Named("PEV")=PEV, Rcpp::Named("Hinv")=HobsInv);
+    if (Hinv) {
+      outaa=List::create(Rcpp::Named("Vu") =Vgt,Rcpp::Named("Ve") =Vet,Rcpp::Named("betahat") =Bt, Rcpp::Named("Gpred")=Gpred,Rcpp::Named("loglik")=loglik,  Rcpp::Named("varBhat")=varBhat, Rcpp::Named("PEV")=PEV, Rcpp::Named("Hinv")=HobsInv);
       return outaa;
     }
     else {
-      outaa=List::create(Rcpp::Named("Vgt") =Vgt,Rcpp::Named("Vet") =Vet,Rcpp::Named("Bt") =Bt, Rcpp::Named("Gpred")=Gpred,Rcpp::Named("loglik")=loglik,  Rcpp::Named("varBhat")=varBhat, Rcpp::Named("PEV")=PEV);
+      outaa=List::create(Rcpp::Named("Vu") =Vgt,Rcpp::Named("Ve") =Vet,Rcpp::Named("betahat") =Bt, Rcpp::Named("Gpred")=Gpred,Rcpp::Named("loglik")=loglik,  Rcpp::Named("varBhat")=varBhat, Rcpp::Named("PEV")=PEV);
       return outaa;
     }
   } else {
     arma::vec loglik=loglikfuncemmremlmv_arma(Y.t(),X.t(),List::create(Rcpp::Named("Z") =Z), List::create(Rcpp::Named("K") =K),List::create(Rcpp::Named("Vgt") =Vgt),Vet,Bt.t());
     List outaa;
-    if (Hinv){
-      outaa=List::create(Rcpp::Named("Vgt") =Vgt,Rcpp::Named("Vet") =Vet,Rcpp::Named("Bt") =Bt, Rcpp::Named("Gpred")=Gpred,Rcpp::Named("loglik")=loglik, Rcpp::Named("Hinv")=HobsInv);
+    if (Hinv) {
+      outaa=List::create(Rcpp::Named("Vu") =Vgt,Rcpp::Named("Ve") =Vet,Rcpp::Named("betahat") =Bt, Rcpp::Named("Gpred")=Gpred,Rcpp::Named("loglik")=loglik, Rcpp::Named("Hinv")=HobsInv);
       return outaa;
     }
     else {
-      outaa=List::create(Rcpp::Named("Vgt") =Vgt,Rcpp::Named("Vet") =Vet,Rcpp::Named("Bt") =Bt, Rcpp::Named("Gpred")=Gpred,Rcpp::Named("loglik")=loglik);
+      outaa=List::create(Rcpp::Named("Vu") =Vgt,Rcpp::Named("Ve") =Vet,Rcpp::Named("betahat") =Bt, Rcpp::Named("Gpred")=Gpred,Rcpp::Named("loglik")=loglik);
       return outaa;
     }
   }
@@ -4268,7 +4385,7 @@ List emmmv(const arma::mat & Yt,const arma::mat & Xt,const arma::mat & Z, const 
 // [[Rcpp::depends("RcppArmadillo")]]
 
 
-List mmmv(const arma::mat & Y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W,const arma::mat & R,const double & tolparconv=1e-9, const double & tolparinv=1e-9,const int & maxiter=200, bool geterrors=false, bool Hinv=false){ 
+List mmmv(const arma::mat & Y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W,const arma::mat & R,const double & tolparconv=1e-9, const double & tolparinv=1e-9,const int & maxiter=200, bool geterrors=false, bool Hinv=false) {
   /////////////
   int k=Zlist.size();
   
@@ -4309,7 +4426,7 @@ List mmmv(const arma::mat & Y,const arma::mat & X,const Rcpp::List & Zlist, cons
   ///////////
   for(int i=0; i<k; i++) {
     Ktemp=as<arma::mat>(Klist(i));
-    dimvec(i) = Ktemp.n_rows ; 
+    dimvec(i) = Ktemp.n_rows ;
     dimen = dimen+dimvec(i);
     Ztemp=as<arma::mat>(Zlist(i));
     ZKZtlist(i)=Ztemp*Ktemp*Ztemp.t();
@@ -4351,7 +4468,7 @@ List mmmv(const arma::mat & Y,const arma::mat & X,const Rcpp::List & Zlist, cons
   vec PsitGamma2Psidiag;
   int itercountouter=0;
   
-  do{
+  do {
     sigma=as<arma::mat>(sigmahatlist(1));
     itercountouter=itercountouter+1;
     ///insert2
@@ -4421,13 +4538,13 @@ List mmmv(const arma::mat & Y,const arma::mat & X,const Rcpp::List & Zlist, cons
   for(int i=0; i<(k+1); i++) {
     Omega=Omega+kron(as<arma::mat>(ZKZtlist(i)),as<arma::mat>(sigmahatlist(i)));
   }
-  Omegainv=inv_sympdsamm(Omega,tolparinv);  
+  Omegainv=inv_sympdsamm(Omega,tolparinv);
   
   arma::mat Xforvec=kron(X,eye(d,d));
   arma::mat varBhat =inv(Xforvec.t()*Omegainv*Xforvec);
   
   int nk;
-  for(int i=0; i<(k); i++){
+  for(int i=0; i<(k); i++) {
     
     nk=  as<arma::mat>(Klist(i)).n_cols;
     arma::vec eehat =arma::vectorise((Y-X*Betahat).t());
@@ -4437,8 +4554,8 @@ List mmmv(const arma::mat & Y,const arma::mat & X,const Rcpp::List & Zlist, cons
     Gpredlist(i)= (reshape(gpred, d, nk)).t();
     
   }
-  if (geterrors==true){
-    for(int i=0; i<(k); i++){
+  if (geterrors==true) {
+    for(int i=0; i<(k); i++) {
       arma::mat P= Omegainv - Omegainv *Xforvec* varBhat*Xforvec.t()*Omegainv;
       arma::mat Zforvec=kron(as<arma::mat>(Zlist(i)), eye(d,d));
       arma::mat ZKforvec=Zforvec * varvecG;
@@ -4447,7 +4564,7 @@ List mmmv(const arma::mat & Y,const arma::mat & X,const Rcpp::List & Zlist, cons
     }
     arma::vec loglik=loglikfuncmmmkmv(Y,X,Zlist, Klist,sigmahatlist,Betahat, W, R);
     List outaa;
-    if (Hinv){
+    if (Hinv) {
       outaa=List::create(Rcpp::Named("sigmahatlist") =sigmahatlist,Rcpp::Named("Betahat") =Betahat, Rcpp::Named("Gpredlist") =Gpredlist,Rcpp::Named("PEVlist") =PEVlist, Rcpp::Named("loglik") =loglik, Rcpp::Named("Hinv")=HobsInv);
       return outaa;
     }
@@ -4455,11 +4572,11 @@ List mmmv(const arma::mat & Y,const arma::mat & X,const Rcpp::List & Zlist, cons
       outaa=List::create(Rcpp::Named("sigmahatlist") =sigmahatlist,Rcpp::Named("Betahat") =Betahat, Rcpp::Named("Gpredlist") =Gpredlist,Rcpp::Named("PEVlist") =PEVlist, Rcpp::Named("loglik") =loglik);
       return outaa;
     }
-  } else { 
+  } else {
     
     arma::vec loglik=loglikfuncmmmkmv(Y,X,Zlist, Klist,sigmahatlist,Betahat, W, R);
     List outaa;
-    if (Hinv){
+    if (Hinv) {
       outaa=List::create(Rcpp::Named("sigmahatlist") =sigmahatlist,Rcpp::Named("Betahat") =Betahat, Rcpp::Named("Gpredlist") =Gpredlist, Rcpp::Named("loglik") =loglik, Rcpp::Named("Hinv")=HobsInv);
       return outaa;
     }
@@ -4480,7 +4597,7 @@ List mmmv(const arma::mat & Y,const arma::mat & X,const Rcpp::List & Zlist, cons
 // [[Rcpp::depends("RcppArmadillo")]]
 
 
-List mmmkmv(const arma::mat & Y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W,const arma::mat & R,const double & tolparconv=1e-9, const double & tolparinv=1e-9,const int & maxiter=200, bool geterrors=false, bool Hinv=false){ 
+List mmmkmv(const arma::mat & Y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W,const arma::mat & R,const double & tolparconv=1e-9, const double & tolparinv=1e-9,const int & maxiter=200, bool geterrors=false, bool Hinv=false) {
   /////////////
   int k=Zlist.size();
   arma::vec dimvec(k);
@@ -4513,7 +4630,7 @@ List mmmkmv(const arma::mat & Y,const arma::mat & X,const Rcpp::List & Zlist, co
   ///////////
   for(int i=0; i<k; i++) {
     Ktemp=as<arma::mat>(Klist(i));
-    dimvec(i) = Ktemp.n_rows ; 
+    dimvec(i) = Ktemp.n_rows ;
     dimen = dimen+dimvec(i);
     Ztemp=as<arma::mat>(Zlist(i));
     ZKZtlist(i)=Ztemp*Ktemp*Ztemp.t();
@@ -4524,7 +4641,7 @@ List mmmkmv(const arma::mat & Y,const arma::mat & X,const Rcpp::List & Zlist, co
   sigmahatlist(k)=sigma;
   
   int itercountouter=0;
-  do{
+  do {
     sigma=as<arma::mat>(sigmahatlist(k));
     itercountouter=itercountouter+1;
     Omega=zeros(n*d,n*d);
@@ -4532,7 +4649,7 @@ List mmmkmv(const arma::mat & Y,const arma::mat & X,const Rcpp::List & Zlist, co
       Omega=Omega+kron(as<arma::mat>(sigmahatlist(i)),as<arma::mat>(ZKZtlist(i)));
     }
     
-    Omegainv=inv_sympdsamm(Omega,tolparinv);    
+    Omegainv=inv_sympdsamm(Omega,tolparinv);
     betahat=solve(bigX.t()*Omegainv*bigX, bigX.t()*Omegainv*reshape(Y,n*d,1));
     
     
@@ -4542,12 +4659,13 @@ List mmmkmv(const arma::mat & Y,const arma::mat & X,const Rcpp::List & Zlist, co
     
     Rmat=reshape(Omegainv*ehat,n,d);
     
-    for(int i=0; i<(k+1); i++){
+    for(int i=0; i<(k+1); i++) {
       ZKZt=as<arma::mat>(ZKZtlist(i));
       LLt=IdOnesn.t()*(kron(ones(d,d),ZKZt)%Omegainv)*IdOnesn;
       Lt=diagmat(pow(diagvec(LLt)+tolparinv,.5));
       Lt=cholsammupper(LLt,tolparinv);
       Ltinv=inv(trimatu(Lt+tolparinv*eye(LLt.n_rows,LLt.n_rows)));
+      // sigmahatlist(i)=(Ltinv*Lt*(as<arma::mat>(sigmahatlist(i))*Rmat.t()*ZKZt*Rmat*as<arma::mat>(sigmahatlist(i)))*Lt.t()*Ltinv.t());
       sigmahatlist(i)=Ltinv*symMroot(Lt*(as<arma::mat>(sigmahatlist(i))*Rmat.t()*ZKZt*Rmat*as<arma::mat>(sigmahatlist(i)))*Lt.t())*Ltinv.t();
     }
     
@@ -4567,13 +4685,13 @@ List mmmkmv(const arma::mat & Y,const arma::mat & X,const Rcpp::List & Zlist, co
   for(int i=0; i<(k+1); i++) {
     Omega=Omega+kron(as<arma::mat>(ZKZtlist(i)),as<arma::mat>(sigmahatlist(i)));
   }
-  Omegainv=inv_sympdsamm(Omega,tolparinv);  
+  Omegainv=inv_sympdsamm(Omega,tolparinv);
   
   arma::mat Xforvec=kron(X,eye(d,d));
   arma::mat varBhat =inv(Xforvec.t()*Omegainv*Xforvec);
   
   int nk;
-  for(int i=0; i<(k); i++){
+  for(int i=0; i<(k); i++) {
     
     nk=  as<arma::mat>(Klist(i)).n_cols;
     arma::vec eehat =arma::vectorise((Y-X*Betahat).t());
@@ -4583,17 +4701,19 @@ List mmmkmv(const arma::mat & Y,const arma::mat & X,const Rcpp::List & Zlist, co
     Gpredlist(i)= (reshape(gpred, d, nk)).t();
     
   }
-  if (geterrors==true){
-    for(int i=0; i<(k); i++){
+  
+  if (geterrors==true) {
+    for(int i=0; i<(k); i++) {
       arma::mat P= Omegainv - Omegainv *Xforvec* varBhat*Xforvec.t()*Omegainv;
       arma::mat Zforvec=kron(as<arma::mat>(Zlist(i)), eye(d,d));
       arma::mat ZKforvec=Zforvec * varvecG;
       arma::vec varGhat = diagvec(ZKforvec.t()* P* ZKforvec);
       PEVlist(i)= diagvec(varvecG) - varGhat;
     }
-    arma::vec loglik=loglikfuncmmmkmv(Y,X,Zlist, Klist,sigmahatlist,betahat, W, R);
+    
+    arma::vec loglik=loglikfuncmmmkmv(Y,X,Zlist, Klist,sigmahatlist,betahat.t(), W, R);
     List outaa;
-    if (Hinv){
+    if (Hinv) {
       outaa=List::create(Rcpp::Named("sigmahatlist") =sigmahatlist,Rcpp::Named("betahat") =betahat, Rcpp::Named("Gpredlist") =Gpredlist,Rcpp::Named("PEVlist") =PEVlist, Rcpp::Named("loglik") =loglik, Rcpp::Named("Hinv") =HobsInv);
       return outaa;
     }
@@ -4601,11 +4721,11 @@ List mmmkmv(const arma::mat & Y,const arma::mat & X,const Rcpp::List & Zlist, co
       outaa=List::create(Rcpp::Named("sigmahatlist") =sigmahatlist,Rcpp::Named("betahat") =betahat, Rcpp::Named("Gpredlist") =Gpredlist,Rcpp::Named("PEVlist") =PEVlist, Rcpp::Named("loglik") =loglik);
       return outaa;
     }
-  } else { 
+  } else {
     
-    arma::vec loglik=loglikfuncmmmkmv(Y,X,Zlist, Klist,sigmahatlist,betahat, W, R);
+    arma::vec loglik=loglikfuncmmmkmv(Y,X,Zlist, Klist,sigmahatlist,betahat.t(), W, R);
     List outaa;
-    if (Hinv){
+    if (Hinv) {
       outaa=List::create(Rcpp::Named("sigmahatlist") =sigmahatlist,Rcpp::Named("betahat") =betahat, Rcpp::Named("Gpredlist") =Gpredlist, Rcpp::Named("loglik") =loglik, Rcpp::Named("Hinv") =HobsInv);
       return outaa;
     }
@@ -4621,8 +4741,7 @@ List mmmkmv(const arma::mat & Y,const arma::mat & X,const Rcpp::List & Zlist, co
 /////////////////////////////////////////////////////////////
 
 
-/////////////HEREEEEEEEEEEENOOOOOOOW
-double minfuncforcormmmk(const arma::vec  params, const arma::mat data, std::string funname, arma::mat Omega, arma::mat Z, arma::mat ZKZtlisti,arma::vec e, double sigmasq){
+double minfuncforcormmmk(const arma::vec  params, const arma::mat data, std::string funname, arma::mat Omega, arma::mat Z, arma::mat ZKZtlisti,arma::vec e, double sigmasq) {
   arma::mat Omegatemp=Omega-sigmasq*ZKZtlisti;
   arma::mat K=callViaString(params,data, funname);
   //arma::mat Kinv=callViaStringinv(paramstemp,data, funname);
@@ -4631,7 +4750,7 @@ double minfuncforcormmmk(const arma::vec  params, const arma::mat data, std::str
   //Rcpp::Rcout  <<"check1"<< std::endl;
   double funcmin;
   
-  //double dmvnorm_arma(const arma::mat & x, const arma::vec & mean, const arma::mat & sigma, bool log = false, bool covinv=false) { 
+  //double dmvnorm_arma(const arma::mat & x, const arma::vec & mean, const arma::mat & sigma, bool log = false, bool covinv=false) {
   
   funcmin=-dmvnorm_arma(e, zeros(e.n_elem,1), Omegatemp, true, false);
   
@@ -4692,12 +4811,12 @@ List simplex_minfuncforcormmmkmv(arma::vec start,const double tolparconv,const  
   pn = scale*(sqrt(npar+1)-1+npar)/(npar*sqrt(2));
   qn = scale*(sqrt(npar+1)-1)/(npar*sqrt(2));
   
-  for (i=0;i<npar;i++) {
+  for (i=0; i<npar; i++) {
     v(0,i) = start[i];
   }
   
-  for (i=1;i<=npar;i++) {
-    for (j=0;j<npar;j++) {
+  for (i=1; i<=npar; i++) {
+    for (j=0; j<npar; j++) {
       if (i-1 == j) {
         v(i,j) = pn + start[j];
       }
@@ -4709,7 +4828,7 @@ List simplex_minfuncforcormmmkmv(arma::vec start,const double tolparconv,const  
   //Use the constraints, just scale so that 1>v[j]>0, sum(v[j])=1
   
   /* find the initial function values */
-  for (j=0;j<=npar;j++) {
+  for (j=0; j<=npar; j++) {
     vvec=(v.row(j)).t();
     
     
@@ -4719,10 +4838,10 @@ List simplex_minfuncforcormmmkmv(arma::vec start,const double tolparconv,const  
   ksimplex = npar+1;
   
   /* begin the main loop of the minimization */
-  for (itr=1;itr<=maxiter;itr++) {     
+  for (itr=1; itr<=maxiter; itr++) {
     /* find the index of the largest value */
     vg=0;
-    for (j=0;j<=npar;j++) {
+    for (j=0; j<=npar; j++) {
       if (f[j] > f[vg]) {
         vg = j;
       }
@@ -4730,7 +4849,7 @@ List simplex_minfuncforcormmmkmv(arma::vec start,const double tolparconv,const  
     
     /* find the index of the smallest value */
     vs=0;
-    for (j=0;j<=npar;j++) {
+    for (j=0; j<=npar; j++) {
       if (f[j] < f[vs]) {
         vs = j;
       }
@@ -4738,16 +4857,16 @@ List simplex_minfuncforcormmmkmv(arma::vec start,const double tolparconv,const  
     
     /* find the index of the second largest value */
     vh=vs;
-    for (j=0;j<=npar;j++) {
+    for (j=0; j<=npar; j++) {
       if (f[j] > f[vh] && f[j] < f[vg]) {
         vh = j;
       }
     }
     
     /* calculate the centroid */
-    for (j=0;j<=npar-1;j++) {
+    for (j=0; j<=npar-1; j++) {
       cent=0.0;
-      for (m=0;m<=npar;m++) {
+      for (m=0; m<=npar; m++) {
         if (m!=vg) {
           cent += v(m,j);
         }
@@ -4756,7 +4875,7 @@ List simplex_minfuncforcormmmkmv(arma::vec start,const double tolparconv,const  
     }
     
     /* reflect vg to new vertex vr */
-    for (j=0;j<=npar-1;j++) {
+    for (j=0; j<=npar-1; j++) {
       /*vr[j] = (1+ALPHA)*vm[j] - ALPHA*v[vg][j];*/
       vr[j] = vm[j]+ALPHA*(vm[j]-v(vg,j));
     }
@@ -4766,7 +4885,7 @@ List simplex_minfuncforcormmmkmv(arma::vec start,const double tolparconv,const  
     ksimplex++;
     
     if (fr < f[vh] && fr >= f[vs]) {
-      for (j=0;j<=npar-1;j++) {
+      for (j=0; j<=npar-1; j++) {
         v(vg,j) = vr[j];
       }
       f[vg] = fr;
@@ -4774,7 +4893,7 @@ List simplex_minfuncforcormmmkmv(arma::vec start,const double tolparconv,const  
     
     /* investigate a step further in this direction */
     if ( fr <  f[vs]) {
-      for (j=0;j<=npar-1;j++) {
+      for (j=0; j<=npar-1; j++) {
         /*ve[j] = GAMMA*vr[j] + (1-GAMMA)*vm[j];*/
         ve[j] = vm[j]+GAMMA*(vr[j]-vm[j]);
       }
@@ -4783,18 +4902,18 @@ List simplex_minfuncforcormmmkmv(arma::vec start,const double tolparconv,const  
       fe = minfuncforcormmmk(ve,data,funname,Omega,Z,ZKZtlisti,e,sigmasq);
       ksimplex++;
       
-      /* by making fe < fr as opposed to fe < f[vs], 			   
-                                              Rosenbrocks function takes 63 iterations as opposed 
+      /* by making fe < fr as opposed to fe < f[vs],
+                                              Rosenbrocks function takes 63 iterations as opposed
       to 64 when using double variables. */
       
       if (fe < fr) {
-        for (j=0;j<=npar-1;j++) {
+        for (j=0; j<=npar-1; j++) {
           v(vg,j)= ve[j];
         }
         f[vg] = fe;
       }
       else {
-        for (j=0;j<=npar-1;j++) {
+        for (j=0; j<=npar-1; j++) {
           v(vg,j) = vr[j];
         }
         f[vg] = fr;
@@ -4805,7 +4924,7 @@ List simplex_minfuncforcormmmkmv(arma::vec start,const double tolparconv,const  
     if (fr >= f[vh]) {
       if (fr < f[vg] && fr >= f[vh]) {
         /* perform outside contraction */
-        for (j=0;j<=npar-1;j++) {
+        for (j=0; j<=npar-1; j++) {
           /*vc[j] = BETA*v[vg][j] + (1-BETA)*vm[j];*/
           vc[j] = vm[j]+BETA*(vr[j]-vm[j]);
         }
@@ -4816,7 +4935,7 @@ List simplex_minfuncforcormmmkmv(arma::vec start,const double tolparconv,const  
       }
       else {
         /* perform inside contraction */
-        for (j=0;j<=npar-1;j++) {
+        for (j=0; j<=npar-1; j++) {
           /*vc[j] = BETA*v[vg][j] + (1-BETA)*vm[j];*/
           vc[j] = vm[j]-BETA*(vm[j]-v(vg,j));
         }
@@ -4827,20 +4946,20 @@ List simplex_minfuncforcormmmkmv(arma::vec start,const double tolparconv,const  
       
       
       if (fc < f[vg]) {
-        for (j=0;j<=npar-1;j++) {
+        for (j=0; j<=npar-1; j++) {
           v(vg,j) = vc[j];
         }
         f[vg] = fc;
       }
       /* at this point the contraction is not successful,
-      we must halve the distance from vs to all the 
+      we must halve the distance from vs to all the
       vertices of the simplex and then continue.
-      10/31/97 - modified to account for ALL vertices. 
+      10/31/97 - modified to account for ALL vertices.
       */
       else {
-        for (row=0;row<=npar;row++) {
+        for (row=0; row<=npar; row++) {
           if (row != vs) {
-            for (j=0;j<=npar-1;j++) {
+            for (j=0; j<=npar-1; j++) {
               v(row,j) = v(vs,j)+(v(row,j)-v(vs,j))/2.0;
             }
           }
@@ -4862,12 +4981,12 @@ List simplex_minfuncforcormmmkmv(arma::vec start,const double tolparconv,const  
     
     /* test for convergence */
     fsum = 0.0;
-    for (j=0;j<=npar;j++) {
+    for (j=0; j<=npar; j++) {
       fsum += f[j];
     }
     favg = fsum/(npar+1);
     s = 0.0;
-    for (j=0;j<=npar;j++) {
+    for (j=0; j<=npar; j++) {
       s += pow((f[j]-favg),2.0)/(npar);
     }
     s = sqrt(s);
@@ -4878,14 +4997,14 @@ List simplex_minfuncforcormmmkmv(arma::vec start,const double tolparconv,const  
   
   /* find the index of the smallest value */
   vs=0;
-  for (j=0;j<=npar;j++) {
+  for (j=0; j<=npar; j++) {
     if (f[j] < f[vs]) {
       vs = j;
     }
   }
   
   
-  for (j=0;j<npar;j++) {
+  for (j=0; j<npar; j++) {
     
     start[j] = v(vs,j);
   }
@@ -4910,7 +5029,7 @@ List simplex_minfuncforcormmmkmv(arma::vec start,const double tolparconv,const  
 // [[Rcpp::depends("RcppArmadillo")]]
 
 
-List mmmkcorfuncmvopt(const arma::colvec & y,const arma::mat & X, const arma::uvec & corfunc,const arma::uvec & corfuncfixed,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W, const Rcpp::List & R,const double & tolparconv=1e-10,const double & tolparinv=1e-10,const int & maxiter=200, bool geterrors=false, double lambda=0, bool Hinv=false){ 
+List mmmkcorfuncmvopt(const arma::colvec & y,const arma::mat & X, const arma::uvec & corfunc,const arma::uvec & corfuncfixed,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W, const Rcpp::List & R,const double & tolparconv=1e-10,const double & tolparinv=1e-10,const int & maxiter=200, bool geterrors=false, double lambda=0, bool Hinv=false) {
   /////////////
   
   int k=Zlist.size();
@@ -4923,7 +5042,7 @@ List mmmkcorfuncmvopt(const arma::colvec & y,const arma::mat & X, const arma::uv
   
   int n = X.n_rows;
   arma::vec ehat(n);
-  arma::mat  Ktemp; 
+  arma::mat  Ktemp;
   arma::mat  Ktempinv;
   arma::mat  Ktempdiff;
   arma::vec Kparamstemp;
@@ -4942,15 +5061,17 @@ List mmmkcorfuncmvopt(const arma::colvec & y,const arma::mat & X, const arma::uv
   arma::vec r;
   ///////////
   for(int i=0; i<k; i++) {
-    if (corfunc(i)){
+    if (corfunc(i)) {
       Kfunctiontemp= Rcpp::as<std::string>(Rcpp::as<Rcpp::List>(Klist(i))(0));
       Kparamstemp= Rcpp::as<arma::vec>(Rcpp::as<Rcpp::List>(Klist(i))(1));
       corfuncparamslist(i)=Kparamstemp;
       Kdatatemp= Rcpp::as<arma::mat>(Rcpp::as<Rcpp::List>(Klist(i))(2));
       Ktemp=callViaString(Kparamstemp,Kdatatemp,Kfunctiontemp);
       //Rcpp::Rcout  << Ktemp.n_rows << std::endl << Ktemp.n_cols << std::endl;
-    } else {Ktemp=as<arma::mat>(Klist(i));}
-    dimvec(i) = Ktemp.n_rows ; 
+    } else {
+      Ktemp=as<arma::mat>(Klist(i));
+    }
+    dimvec(i) = Ktemp.n_rows ;
     dimen = dimen+dimvec(i);
     Ztemp=as<arma::mat>(Zlist(i));
     ZKZtlist(i)=Ztemp*Ktemp*Ztemp.t();
@@ -4959,14 +5080,16 @@ List mmmkcorfuncmvopt(const arma::colvec & y,const arma::mat & X, const arma::uv
   }
   //Rcpp::Rcout  <<2 << std::endl;
   
-  if (corfunc(k)){
+  if (corfunc(k)) {
     Kfunctiontemp= Rcpp::as<std::string>(Rcpp::as<Rcpp::List>(R(0))(0));
     Kparamstemp= Rcpp::as<arma::vec>(Rcpp::as<Rcpp::List>(R(0))(1));
     corfuncparamslist(k)=Kparamstemp;
     Kdatatemp= Rcpp::as<arma::mat>(Rcpp::as<Rcpp::List>(R(0))(2));
     Ktemp=callViaString(Kparamstemp,Kdatatemp,Kfunctiontemp);
     //Rcpp::Rcout  << Ktemp.n_rows << std::endl << Ktemp.n_cols << std::endl;
-  } else {Ktemp=as<arma::mat>(R(0));}
+  } else {
+    Ktemp=as<arma::mat>(R(0));
+  }
   
   ZKZtlist(k)=W*Ktemp*W.t();
   
@@ -4978,7 +5101,7 @@ List mmmkcorfuncmvopt(const arma::colvec & y,const arma::mat & X, const arma::uv
   List brentout(2);
   //Rcpp::Rcout  << 3 << std::endl;
   
-  do{
+  do {
     itercountouter=itercountouter+1;
     Omega=zeros(n,n);
     for(int i=0; i<(k+1); i++) {
@@ -4986,7 +5109,7 @@ List mmmkcorfuncmvopt(const arma::colvec & y,const arma::mat & X, const arma::uv
     }
     //   // Rcpp::Rcout  << "itercountouter:" << std::endl << itercountouter << std::endl;
     
-    try{
+    try {
       Omegainv=inv_sympdsamm(Omega,tolparinv);
     }
     catch(...) {
@@ -4998,13 +5121,17 @@ List mmmkcorfuncmvopt(const arma::colvec & y,const arma::mat & X, const arma::uv
     betahat=solve(X.t()*Omegainv*X, X.t()*Omegainv*y);
     ehat=y-X*betahat;
     for(int i=0; i<(k+1); i++) {
-      if (sigmasqhatvec(i)>1e-10){
+      if (sigmasqhatvec(i)>1e-10) {
         ZKZt=as<arma::mat>(ZKZtlist(i));
         multiplier=ehat.t()*Omegainv*ZKZt*Omegainv*ehat;
         
-        if (i<k){
-          if (lambda>=1){lambda=1-1e-10;}
-          if (lambda<=0){lambda=0+1e-10;}
+        if (i<k) {
+          if (lambda>=1) {
+            lambda=1-1e-10;
+          }
+          if (lambda<=0) {
+            lambda=0+1e-10;
+          }
           multiplier=multiplier/(trace(Omegainv*ZKZt)+(-log10(1-lambda))+1e-10);
         } else {
           multiplier=multiplier/(trace(Omegainv*ZKZt)+1e-10);
@@ -5012,24 +5139,30 @@ List mmmkcorfuncmvopt(const arma::colvec & y,const arma::mat & X, const arma::uv
         
         //   // Rcpp::Rcout  << "check:" << std::endl << "4" << std::endl;
         
-        if (multiplier(0)-1<0){multiplier(0)=1-1.5*(1-multiplier(0));}
-        if (multiplier(0)-1>0){multiplier(0)=1+1.5*(multiplier(0)-1);}
+     //   if (multiplier(0)-1<0) {
+      //    multiplier(0)=1-1.5*(1-multiplier(0));
+      //  }
+      //  if (multiplier(0)-1>0) {
+      //    multiplier(0)=1+1.5*(multiplier(0)-1);
+      //  }
         
         sigmasqhatvec(i)=sigmasqhatvec(i)*powf(multiplier(0),.5);
-        if (sigmasqhatvec(i)<=0){sigmasqhatvec(i)=0;}
+        if (sigmasqhatvec(i)<=0) {
+          sigmasqhatvec(i)=0;
+        }
         //////////////////////Here estimate the covfunc parameter, recalculate things that depend on K
         //Rcpp::Rcout  << sigmasqhatvec(i) << std::endl;
         ////   // Rcpp::Rcout  << "check:" << std::endl << "4.1" << std::endl;
         
-        if (itercountouter % 10==0){
-          if (corfunc(i)){
-            if (!corfuncfixed(i)){
-              if (sigmasqhatvec(i)>1e-10){
-                if (i<k){
+        if (itercountouter % 10==0) {
+          if (corfunc(i)) {
+            if (!corfuncfixed(i)) {
+              if (sigmasqhatvec(i)>1e-10) {
+                if (i<k) {
                   Kfunctiontemp= Rcpp::as<std::string>(Rcpp::as<Rcpp::List>(Klist(i))(0));
                   Kparamstemp= Rcpp::as<arma::vec>(corfuncparamslist(i));
                   Kdatatemp= Rcpp::as<arma::mat>(Rcpp::as<Rcpp::List>(Klist(i))(2));
-                } else { 
+                } else {
                   Kfunctiontemp= Rcpp::as<std::string>(Rcpp::as<Rcpp::List>(R(0))(0));
                   Kparamstemp= Rcpp::as<arma::vec>(corfuncparamslist(i));
                   Kdatatemp= Rcpp::as<arma::mat>(Rcpp::as<Rcpp::List>(R(0))(2));
@@ -5038,17 +5171,17 @@ List mmmkcorfuncmvopt(const arma::colvec & y,const arma::mat & X, const arma::uv
                 
                 //Rcpp::Rcout  << Ktemp.n_rows << std::endl << Ktemp.n_cols << std::endl;
                 
-                if (i<k){
+                if (i<k) {
                   Ztemp=Rcpp::as<arma::mat>(Zlist(i));
                   ZKZt=Rcpp::as<arma::mat>(ZKZtlist(i));
-                }else{
+                } else {
                   Ztemp=W;
                   ZKZt=Rcpp::as<arma::mat>(ZKZtlist(i));
                 }
                 
                 ////   // Rcpp::Rcout  << "check:" << std::endl << "5" << std::endl;
                 
-                brentout=simplex_minfuncforcormmmkmv(Kparamstemp,tolparconv,100,Kdatatemp, Kfunctiontemp, Omega,Ztemp,ZKZt,ehat, sigmasqhatvec(i));
+                brentout=simplex_minfuncforcormmmkmv(Kparamstemp,tolparconv,1000,Kdatatemp, Kfunctiontemp, Omega,Ztemp,ZKZt,ehat, sigmasqhatvec(i));
                 Kparamstemp=Rcpp::as<arma::vec>(brentout(1));
                 corfuncparamslist(i)=Kparamstemp;
                 
@@ -5056,7 +5189,7 @@ List mmmkcorfuncmvopt(const arma::colvec & y,const arma::mat & X, const arma::uv
                 ZKZtlist(i)= Ztemp*callViaString(Kparamstemp,Kdatatemp,Kfunctiontemp)*Ztemp.t();
                 
               }
-            } 
+            }
           }
         }
       }
@@ -5080,12 +5213,14 @@ List mmmkcorfuncmvopt(const arma::colvec & y,const arma::mat & X, const arma::uv
   List ZKList(k);
   
   for(int i=0; i<k; i++) {
-    if (corfunc(i)){
+    if (corfunc(i)) {
       Kfunctiontemp= Rcpp::as<std::string>(Rcpp::as<Rcpp::List>(Klist(i))(0));
       Kparamstemp= Rcpp::as<arma::vec>(corfuncparamslist(i));
       Kdatatemp= Rcpp::as<arma::mat>(Rcpp::as<Rcpp::List>(Klist(i))(2));
       Ktemp=callViaString(Kparamstemp,Kdatatemp,Kfunctiontemp);
-    } else {Ktemp=as<arma::mat>(Klist(i));}
+    } else {
+      Ktemp=as<arma::mat>(Klist(i));
+    }
     Ztemp=as<arma::mat>(Zlist(i));
     ZKList(i)=Ztemp*Ktemp;
   }
@@ -5106,12 +5241,12 @@ List mmmkcorfuncmvopt(const arma::colvec & y,const arma::mat & X, const arma::uv
   
   
   arma::vec uhat = (ZK).t()*Hinvhatehat;
-  if (geterrors==true){
+  if (geterrors==true) {
     arma::vec Covbetahat=inv(X.t()*Omegainv*X);
     arma::vec PEV=diagvec(pow(sum(sigmasqhatvec.subvec(0,k-1)),2)*ZK.t()*Omegainv*(ZK-X*Covbetahat*X.t()*Omegainv*ZK));
     double loglik=dmvnorm_arma(y, X*betahat,Omegainv, true, true);
     List outaa;
-    if (Hinv){
+    if (Hinv) {
       outaa=List::create(Rcpp::Named("Vu") =sum(sigmasqhatvec.subvec(0,k-1)),Rcpp::Named("Ve") =sigmasqhatvec(k),Rcpp::Named("betahat") = betahat,Rcpp::Named("uhat") = uhat, Rcpp::Named("loglik") = loglik, Rcpp::Named("Hinv") = Hinvhat, Rcpp::Named("weights") = sigmasqhatvec.subvec(0,k-1)/sum(sigmasqhatvec.subvec(0,k-1)),Rcpp::Named("Covbetahat") = Covbetahat, Rcpp::Named("PEV") = PEV);
     }
     else {
@@ -5122,7 +5257,7 @@ List mmmkcorfuncmvopt(const arma::colvec & y,const arma::mat & X, const arma::uv
     arma::vec weights=as<arma::vec>(outaa["weights"]);
     
     arma::vec PEVinsert;
-    for (int i=0; i<k; i++){
+    for (int i=0; i<k; i++) {
       PEVinsert=join_cols(PEVinsert,sigmasqu*weights(i)*diagvec(as<arma::mat>(Klist(i))));
       
     }
@@ -5134,7 +5269,7 @@ List mmmkcorfuncmvopt(const arma::colvec & y,const arma::mat & X, const arma::uv
   } else {
     double loglik=dmvnorm_arma(y, X*betahat,Omegainv, true, true);
     List outaa;
-    if (Hinv){
+    if (Hinv) {
       outaa=List::create(Rcpp::Named("Vu")=sum(sigmasqhatvec.subvec(0,k-1)) ,Rcpp::Named("Ve") =sigmasqhatvec(k),Rcpp::Named("betahat") = betahat,Rcpp::Named("uhat") = uhat, Rcpp::Named("loglik") = loglik, Rcpp::Named("Hinv") = Hinvhat, Rcpp::Named("weights") = sigmasqhatvec.subvec(0,k-1)/sum(sigmasqhatvec.subvec(0,k-1)),Rcpp::Named("corfuncparamslist")=corfuncparamslist);
       return outaa;
     }
@@ -5150,7 +5285,7 @@ List mmmkcorfuncmvopt(const arma::colvec & y,const arma::mat & X, const arma::uv
 /////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////
 //Omegainv,Ztemp,ZKZt,Rmat, as<arma::mat>(sigmahatlist(i))
-double minfuncforcor(const arma::vec  params,const arma::mat data, std::string funname, arma::mat Omegainv, arma::mat Z,arma::mat ZKtZt,arma::mat Rmat, arma::mat Lambda, const double tolparinv){
+double minfuncforcor(const arma::vec  params,const arma::mat data, std::string funname, arma::mat Omegainv, arma::mat Z,arma::mat ZKtZt,arma::mat Rmat, arma::mat Lambda, const double tolparinv) {
   
   arma::vec paramstemp=params;
   arma::mat K=callViaString(paramstemp,data, funname);
@@ -5217,12 +5352,12 @@ List simplex_minfuncforcormv(arma::vec start,const double tolparconv,const  int 
   pn = scale*(sqrt(npar+1)-1+npar)/(npar*sqrt(2));
   qn = scale*(sqrt(npar+1)-1)/(npar*sqrt(2));
   
-  for (i=0;i<npar;i++) {
+  for (i=0; i<npar; i++) {
     v(0,i) = start[i];
   }
   
-  for (i=1;i<=npar;i++) {
-    for (j=0;j<npar;j++) {
+  for (i=1; i<=npar; i++) {
+    for (j=0; j<npar; j++) {
       if (i-1 == j) {
         v(i,j) = pn + start[j];
       }
@@ -5234,7 +5369,7 @@ List simplex_minfuncforcormv(arma::vec start,const double tolparconv,const  int 
   //Use the constraints, just scale so that 1>v[j]>0, sum(v[j])=1
   
   /* find the initial function values */
-  for (j=0;j<=npar;j++) {
+  for (j=0; j<=npar; j++) {
     vvec=(v.row(j)).t();
     
     // minfuncforcor(const arma::vec  params,const arma::mat data, std::string funname, arma::mat Omegainv, arma::mat Z,arma::mat ZKtZt,arma::mat Rmat, arma::mat Lambda)
@@ -5245,10 +5380,10 @@ List simplex_minfuncforcormv(arma::vec start,const double tolparconv,const  int 
   ksimplex = npar+1;
   
   /* begin the main loop of the minimization */
-  for (itr=1;itr<=maxiter;itr++) {     
+  for (itr=1; itr<=maxiter; itr++) {
     /* find the index of the largest value */
     vg=0;
-    for (j=0;j<=npar;j++) {
+    for (j=0; j<=npar; j++) {
       if (f[j] > f[vg]) {
         vg = j;
       }
@@ -5256,7 +5391,7 @@ List simplex_minfuncforcormv(arma::vec start,const double tolparconv,const  int 
     
     /* find the index of the smallest value */
     vs=0;
-    for (j=0;j<=npar;j++) {
+    for (j=0; j<=npar; j++) {
       if (f[j] < f[vs]) {
         vs = j;
       }
@@ -5264,16 +5399,16 @@ List simplex_minfuncforcormv(arma::vec start,const double tolparconv,const  int 
     
     /* find the index of the second largest value */
     vh=vs;
-    for (j=0;j<=npar;j++) {
+    for (j=0; j<=npar; j++) {
       if (f[j] > f[vh] && f[j] < f[vg]) {
         vh = j;
       }
     }
     
     /* calculate the centroid */
-    for (j=0;j<=npar-1;j++) {
+    for (j=0; j<=npar-1; j++) {
       cent=0.0;
-      for (m=0;m<=npar;m++) {
+      for (m=0; m<=npar; m++) {
         if (m!=vg) {
           cent += v(m,j);
         }
@@ -5282,7 +5417,7 @@ List simplex_minfuncforcormv(arma::vec start,const double tolparconv,const  int 
     }
     
     /* reflect vg to new vertex vr */
-    for (j=0;j<=npar-1;j++) {
+    for (j=0; j<=npar-1; j++) {
       /*vr[j] = (1+ALPHA)*vm[j] - ALPHA*v[vg][j];*/
       vr[j] = vm[j]+ALPHA*(vm[j]-v(vg,j));
     }
@@ -5292,7 +5427,7 @@ List simplex_minfuncforcormv(arma::vec start,const double tolparconv,const  int 
     ksimplex++;
     
     if (fr < f[vh] && fr >= f[vs]) {
-      for (j=0;j<=npar-1;j++) {
+      for (j=0; j<=npar-1; j++) {
         v(vg,j) = vr[j];
       }
       f[vg] = fr;
@@ -5300,7 +5435,7 @@ List simplex_minfuncforcormv(arma::vec start,const double tolparconv,const  int 
     
     /* investigate a step further in this direction */
     if ( fr <  f[vs]) {
-      for (j=0;j<=npar-1;j++) {
+      for (j=0; j<=npar-1; j++) {
         /*ve[j] = GAMMA*vr[j] + (1-GAMMA)*vm[j];*/
         ve[j] = vm[j]+GAMMA*(vr[j]-vm[j]);
       }
@@ -5309,18 +5444,18 @@ List simplex_minfuncforcormv(arma::vec start,const double tolparconv,const  int 
       fe = minfuncforcor(ve,data,funname,Omegainv,Z,ZKtZt,Rmat,Lambda, tolparinv);
       ksimplex++;
       
-      /* by making fe < fr as opposed to fe < f[vs], 			   
-                                              Rosenbrocks function takes 63 iterations as opposed 
+      /* by making fe < fr as opposed to fe < f[vs],
+                                              Rosenbrocks function takes 63 iterations as opposed
       to 64 when using double variables. */
       
       if (fe < fr) {
-        for (j=0;j<=npar-1;j++) {
+        for (j=0; j<=npar-1; j++) {
           v(vg,j)= ve[j];
         }
         f[vg] = fe;
       }
       else {
-        for (j=0;j<=npar-1;j++) {
+        for (j=0; j<=npar-1; j++) {
           v(vg,j) = vr[j];
         }
         f[vg] = fr;
@@ -5331,7 +5466,7 @@ List simplex_minfuncforcormv(arma::vec start,const double tolparconv,const  int 
     if (fr >= f[vh]) {
       if (fr < f[vg] && fr >= f[vh]) {
         /* perform outside contraction */
-        for (j=0;j<=npar-1;j++) {
+        for (j=0; j<=npar-1; j++) {
           /*vc[j] = BETA*v[vg][j] + (1-BETA)*vm[j];*/
           vc[j] = vm[j]+BETA*(vr[j]-vm[j]);
         }
@@ -5342,7 +5477,7 @@ List simplex_minfuncforcormv(arma::vec start,const double tolparconv,const  int 
       }
       else {
         /* perform inside contraction */
-        for (j=0;j<=npar-1;j++) {
+        for (j=0; j<=npar-1; j++) {
           /*vc[j] = BETA*v[vg][j] + (1-BETA)*vm[j];*/
           vc[j] = vm[j]-BETA*(vm[j]-v(vg,j));
         }
@@ -5353,20 +5488,20 @@ List simplex_minfuncforcormv(arma::vec start,const double tolparconv,const  int 
       
       
       if (fc < f[vg]) {
-        for (j=0;j<=npar-1;j++) {
+        for (j=0; j<=npar-1; j++) {
           v(vg,j) = vc[j];
         }
         f[vg] = fc;
       }
       /* at this point the contraction is not successful,
-      we must halve the distance from vs to all the 
+      we must halve the distance from vs to all the
       vertices of the simplex and then continue.
-      10/31/97 - modified to account for ALL vertices. 
+      10/31/97 - modified to account for ALL vertices.
       */
       else {
-        for (row=0;row<=npar;row++) {
+        for (row=0; row<=npar; row++) {
           if (row != vs) {
-            for (j=0;j<=npar-1;j++) {
+            for (j=0; j<=npar-1; j++) {
               v(row,j) = v(vs,j)+(v(row,j)-v(vs,j))/2.0;
             }
           }
@@ -5388,12 +5523,12 @@ List simplex_minfuncforcormv(arma::vec start,const double tolparconv,const  int 
     
     /* test for convergence */
     fsum = 0.0;
-    for (j=0;j<=npar;j++) {
+    for (j=0; j<=npar; j++) {
       fsum += f[j];
     }
     favg = fsum/(npar+1);
     s = 0.0;
-    for (j=0;j<=npar;j++) {
+    for (j=0; j<=npar; j++) {
       s += pow((f[j]-favg),2.0)/(npar);
     }
     s = sqrt(s);
@@ -5404,14 +5539,14 @@ List simplex_minfuncforcormv(arma::vec start,const double tolparconv,const  int 
   
   /* find the index of the smallest value */
   vs=0;
-  for (j=0;j<=npar;j++) {
+  for (j=0; j<=npar; j++) {
     if (f[j] < f[vs]) {
       vs = j;
     }
   }
   
   
-  for (j=0;j<npar;j++) {
+  for (j=0; j<npar; j++) {
     
     start[j] = v(vs,j);
   }
@@ -5431,7 +5566,7 @@ List simplex_minfuncforcormv(arma::vec start,const double tolparconv,const  int 
 /////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////
 //Omegainv,Ztemp,ZKZt,Rmat, as<arma::mat>(sigmahatlist(i))
-double minfuncforsig(const arma::vec  params,const arma::mat data, std::string funname, arma::mat Omegainv,arma::mat ZKtZt,arma::mat Rmat, arma::mat Lambdat, const double tolparinv){
+double minfuncforsig(const arma::vec  params,const arma::mat data, std::string funname, arma::mat Omegainv,arma::mat ZKtZt,arma::mat Rmat, arma::mat Lambdat, const double tolparinv) {
   
   arma::vec paramstemp=params;
   arma::mat Lambda=callViaStringSigma(paramstemp,data, funname);
@@ -5499,12 +5634,12 @@ List simplex_minfuncforsigmv(arma::vec start,const double   tolparconv,const  in
   pn = scale*(sqrt(npar+1)-1+npar)/(npar*sqrt(2));
   qn = scale*(sqrt(npar+1)-1)/(npar*sqrt(2));
   
-  for (i=0;i<npar;i++) {
+  for (i=0; i<npar; i++) {
     v(0,i) = start[i];
   }
   
-  for (i=1;i<=npar;i++) {
-    for (j=0;j<npar;j++) {
+  for (i=1; i<=npar; i++) {
+    for (j=0; j<npar; j++) {
       if (i-1 == j) {
         v(i,j) = pn + start[j];
       }
@@ -5516,7 +5651,7 @@ List simplex_minfuncforsigmv(arma::vec start,const double   tolparconv,const  in
   //Use the constraints, just scale so that 1>v[j]>0, sum(v[j])=1
   
   /* find the initial function values */
-  for (j=0;j<=npar;j++) {
+  for (j=0; j<=npar; j++) {
     vvec=(v.row(j)).t();
     
     
@@ -5527,10 +5662,10 @@ List simplex_minfuncforsigmv(arma::vec start,const double   tolparconv,const  in
   ksimplex = npar+1;
   
   /* begin the main loop of the minimization */
-  for (itr=1;itr<=maxiter;itr++) {     
+  for (itr=1; itr<=maxiter; itr++) {
     /* find the index of the largest value */
     vg=0;
-    for (j=0;j<=npar;j++) {
+    for (j=0; j<=npar; j++) {
       if (f[j] > f[vg]) {
         vg = j;
       }
@@ -5538,7 +5673,7 @@ List simplex_minfuncforsigmv(arma::vec start,const double   tolparconv,const  in
     
     /* find the index of the smallest value */
     vs=0;
-    for (j=0;j<=npar;j++) {
+    for (j=0; j<=npar; j++) {
       if (f[j] < f[vs]) {
         vs = j;
       }
@@ -5546,16 +5681,16 @@ List simplex_minfuncforsigmv(arma::vec start,const double   tolparconv,const  in
     
     /* find the index of the second largest value */
     vh=vs;
-    for (j=0;j<=npar;j++) {
+    for (j=0; j<=npar; j++) {
       if (f[j] > f[vh] && f[j] < f[vg]) {
         vh = j;
       }
     }
     
     /* calculate the centroid */
-    for (j=0;j<=npar-1;j++) {
+    for (j=0; j<=npar-1; j++) {
       cent=0.0;
-      for (m=0;m<=npar;m++) {
+      for (m=0; m<=npar; m++) {
         if (m!=vg) {
           cent += v(m,j);
         }
@@ -5564,7 +5699,7 @@ List simplex_minfuncforsigmv(arma::vec start,const double   tolparconv,const  in
     }
     
     /* reflect vg to new vertex vr */
-    for (j=0;j<=npar-1;j++) {
+    for (j=0; j<=npar-1; j++) {
       /*vr[j] = (1+ALPHA)*vm[j] - ALPHA*v[vg][j];*/
       vr[j] = vm[j]+ALPHA*(vm[j]-v(vg,j));
     }
@@ -5574,7 +5709,7 @@ List simplex_minfuncforsigmv(arma::vec start,const double   tolparconv,const  in
     ksimplex++;
     
     if (fr < f[vh] && fr >= f[vs]) {
-      for (j=0;j<=npar-1;j++) {
+      for (j=0; j<=npar-1; j++) {
         v(vg,j) = vr[j];
       }
       f[vg] = fr;
@@ -5582,7 +5717,7 @@ List simplex_minfuncforsigmv(arma::vec start,const double   tolparconv,const  in
     
     /* investigate a step further in this direction */
     if ( fr <  f[vs]) {
-      for (j=0;j<=npar-1;j++) {
+      for (j=0; j<=npar-1; j++) {
         /*ve[j] = GAMMA*vr[j] + (1-GAMMA)*vm[j];*/
         ve[j] = vm[j]+GAMMA*(vr[j]-vm[j]);
       }
@@ -5591,18 +5726,18 @@ List simplex_minfuncforsigmv(arma::vec start,const double   tolparconv,const  in
       fe =minfuncforsig(ve,data,funname,Omegainv,ZKtZt,Rmat,Lambdat,tolparinv);
       ksimplex++;
       
-      /* by making fe < fr as opposed to fe < f[vs], 			   
-                                              Rosenbrocks function takes 63 iterations as opposed 
+      /* by making fe < fr as opposed to fe < f[vs],
+                                              Rosenbrocks function takes 63 iterations as opposed
       to 64 when using double variables. */
       
       if (fe < fr) {
-        for (j=0;j<=npar-1;j++) {
+        for (j=0; j<=npar-1; j++) {
           v(vg,j)= ve[j];
         }
         f[vg] = fe;
       }
       else {
-        for (j=0;j<=npar-1;j++) {
+        for (j=0; j<=npar-1; j++) {
           v(vg,j) = vr[j];
         }
         f[vg] = fr;
@@ -5613,7 +5748,7 @@ List simplex_minfuncforsigmv(arma::vec start,const double   tolparconv,const  in
     if (fr >= f[vh]) {
       if (fr < f[vg] && fr >= f[vh]) {
         /* perform outside contraction */
-        for (j=0;j<=npar-1;j++) {
+        for (j=0; j<=npar-1; j++) {
           /*vc[j] = BETA*v[vg][j] + (1-BETA)*vm[j];*/
           vc[j] = vm[j]+BETA*(vr[j]-vm[j]);
         }
@@ -5624,7 +5759,7 @@ List simplex_minfuncforsigmv(arma::vec start,const double   tolparconv,const  in
       }
       else {
         /* perform inside contraction */
-        for (j=0;j<=npar-1;j++) {
+        for (j=0; j<=npar-1; j++) {
           /*vc[j] = BETA*v[vg][j] + (1-BETA)*vm[j];*/
           vc[j] = vm[j]-BETA*(vm[j]-v(vg,j));
         }
@@ -5635,20 +5770,20 @@ List simplex_minfuncforsigmv(arma::vec start,const double   tolparconv,const  in
       
       
       if (fc < f[vg]) {
-        for (j=0;j<=npar-1;j++) {
+        for (j=0; j<=npar-1; j++) {
           v(vg,j) = vc[j];
         }
         f[vg] = fc;
       }
       /* at this point the contraction is not successful,
-      we must halve the distance from vs to all the 
+      we must halve the distance from vs to all the
       vertices of the simplex and then continue.
-      10/31/97 - modified to account for ALL vertices. 
+      10/31/97 - modified to account for ALL vertices.
       */
       else {
-        for (row=0;row<=npar;row++) {
+        for (row=0; row<=npar; row++) {
           if (row != vs) {
-            for (j=0;j<=npar-1;j++) {
+            for (j=0; j<=npar-1; j++) {
               v(row,j) = v(vs,j)+(v(row,j)-v(vs,j))/2.0;
             }
           }
@@ -5670,12 +5805,12 @@ List simplex_minfuncforsigmv(arma::vec start,const double   tolparconv,const  in
     
     /* test for convergence */
     fsum = 0.0;
-    for (j=0;j<=npar;j++) {
+    for (j=0; j<=npar; j++) {
       fsum += f[j];
     }
     favg = fsum/(npar+1);
     s = 0.0;
-    for (j=0;j<=npar;j++) {
+    for (j=0; j<=npar; j++) {
       s += pow((f[j]-favg),2.0)/(npar);
     }
     s = sqrt(s);
@@ -5686,14 +5821,14 @@ List simplex_minfuncforsigmv(arma::vec start,const double   tolparconv,const  in
   
   /* find the index of the smallest value */
   vs=0;
-  for (j=0;j<=npar;j++) {
+  for (j=0; j<=npar; j++) {
     if (f[j] < f[vs]) {
       vs = j;
     }
   }
   
   
-  for (j=0;j<npar;j++) {
+  for (j=0; j<npar; j++) {
     
     start[j] = v(vs,j);
   }
@@ -5719,7 +5854,7 @@ List simplex_minfuncforsigmv(arma::vec start,const double   tolparconv,const  in
 // [[Rcpp::depends("RcppArmadillo")]]
 
 
-List mmmkmvcorfuncsigmafuncmvopt(const arma::mat & Y,const arma::mat & X, const arma::uvec & corfunc,const arma::uvec & corfuncfixed, const arma::uvec & sigfunc,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W,const Rcpp::List & R,const Rcpp::List & Siglist,const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, bool geterrors=false, bool Hinv=false){ 
+List mmmkmvcorfuncsigmafuncmvopt(const arma::mat & Y,const arma::mat & X, const arma::uvec & corfunc,const arma::uvec & corfuncfixed, const arma::uvec & sigfunc,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W,const Rcpp::List & R,const Rcpp::List & Siglist,const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, bool geterrors=false, bool Hinv=false) {
   /////////////
   //Rcpp::Rcout  << 1 << std::endl;
   
@@ -5763,7 +5898,9 @@ List mmmkmvcorfuncsigmafuncmvopt(const arma::mat & Y,const arma::mat & X, const 
   List sigmahatlist(k+1);
   arma::mat sigma(d,d);
   arma::mat sigma0(d,d);
-  if (d==1){sigma=1;}
+  if (d==1) {
+    sigma=1;
+  }
   else {
     sigma=cov(Y)/(k+1);
   }
@@ -5773,7 +5910,7 @@ List mmmkmvcorfuncsigmafuncmvopt(const arma::mat & Y,const arma::mat & X, const 
   Rcpp::List ZKZtlist(k+1);
   
   for(int i=0; i<k; i++) {
-    if (corfunc(i)){
+    if (corfunc(i)) {
       //Rcpp::Rcout  << 1999999 << std::endl;
       Kfunctiontemp= Rcpp::as<std::string>(Rcpp::as<Rcpp::List>(Klist(i))(0));
       Kparamstemp= Rcpp::as<arma::vec>(Rcpp::as<Rcpp::List>(Klist(i))(1));
@@ -5781,8 +5918,10 @@ List mmmkmvcorfuncsigmafuncmvopt(const arma::mat & Y,const arma::mat & X, const 
       Kdatatemp= Rcpp::as<arma::mat>(Rcpp::as<Rcpp::List>(Klist(i))(2));
       Ktemp=callViaString(Kparamstemp,Kdatatemp,Kfunctiontemp);
       //Rcpp::Rcout  << Ktemp.n_rows << std::endl << Ktemp.n_cols << std::endl;
-    } else {Ktemp=as<arma::mat>(Klist(i));}
-    dimvec(i) = Ktemp.n_rows ; 
+    } else {
+      Ktemp=as<arma::mat>(Klist(i));
+    }
+    dimvec(i) = Ktemp.n_rows ;
     dimen = dimen+dimvec(i);
     Ztemp=as<arma::mat>(Zlist(i));
     ZKZtlist(i)=Ztemp*Ktemp*Ztemp.t();
@@ -5791,14 +5930,16 @@ List mmmkmvcorfuncsigmafuncmvopt(const arma::mat & Y,const arma::mat & X, const 
   }
   //Rcpp::Rcout  <<2<< std::endl;
   
-  if (corfunc(k)){
+  if (corfunc(k)) {
     //Rcpp::Rcout  << 1999999 << std::endl;
     Kfunctiontemp= Rcpp::as<std::string>(Rcpp::as<Rcpp::List>(R(0))(0));
     Kparamstemp= Rcpp::as<arma::vec>(Rcpp::as<Rcpp::List>(R(0))(1));
     corfuncparamslist(k)=Kparamstemp;
     Kdatatemp= Rcpp::as<arma::mat>(Rcpp::as<Rcpp::List>(R(0))(2));
     Ktemp=callViaString(Kparamstemp,Kdatatemp,Kfunctiontemp);
-  } else {Ktemp=as<arma::mat>(R(0));}
+  } else {
+    Ktemp=as<arma::mat>(R(0));
+  }
   
   ZKZtlist(k)=W*Ktemp*W.t();
   
@@ -5808,7 +5949,7 @@ List mmmkmvcorfuncsigmafuncmvopt(const arma::mat & Y,const arma::mat & X, const 
   
   
   for(int i=0; i<(k+1); i++) {
-    if (sigfunc(i)){
+    if (sigfunc(i)) {
       //Rcpp::Rcout  << 3.1 << std::endl;
       // Rcpp::Rcout  << 1999999 << std::endl;
       Sfunctiontemp= Rcpp::as<std::string>(Rcpp::as<Rcpp::List>(Siglist(i))(0));
@@ -5831,7 +5972,7 @@ List mmmkmvcorfuncsigmafuncmvopt(const arma::mat & Y,const arma::mat & X, const 
   //Rcpp::Rcout  << 4 << std::endl;
   
   int itercountouter=0;
-  do{
+  do {
     itercountouter=itercountouter+1;
     
     sigma0=as<arma::mat>(sigmahatlist(k));////this is for convergence check
@@ -5841,7 +5982,7 @@ List mmmkmvcorfuncsigmafuncmvopt(const arma::mat & Y,const arma::mat & X, const 
       Omega=Omega+kron(as<arma::mat>(sigmahatlist(i)),as<arma::mat>(ZKZtlist(i)));
     }
     //Rcpp::Rcout  << itercountouter << std::endl;
-    Omegainv=inv_sympdsamm(Omega,tolparinv);    
+    Omegainv=inv_sympdsamm(Omega,tolparinv);
     betahat=solve(bigX.t()*Omegainv*bigX, bigX.t()*Omegainv*reshape(Y,n*d,1));
     
     
@@ -5851,7 +5992,7 @@ List mmmkmvcorfuncsigmafuncmvopt(const arma::mat & Y,const arma::mat & X, const 
     
     Rmat=reshape(Omegainv*ehat,n,d);
     
-    for(int i=0; i<(k+1); i++){
+    for(int i=0; i<(k+1); i++) {
       //Rcpp::Rcout  << itercountouter << std::endl;
       //Rcpp::Rcout  << i << std::endl;
       
@@ -5860,26 +6001,26 @@ List mmmkmvcorfuncsigmafuncmvopt(const arma::mat & Y,const arma::mat & X, const 
       Lt=diagmat(pow(diagvec(LLt)+tolparinv,.5));
       Lt=cholsammupper(Lt,tolparinv);
       Ltinv=inv(trimatu(Lt+tolparinv*eye(LLt.n_rows,LLt.n_rows)));
-      if (!(sigfunc(i))){
+      if (!(sigfunc(i))) {
         sigmahatlist(i)=Ltinv*symMroot(Lt*(as<arma::mat>(sigmahatlist(i))*Rmat.t()*ZKZt*Rmat*as<arma::mat>(sigmahatlist(i)))*Lt.t())*Ltinv.t();
-      } else{
+      } else {
         
         Sfunctiontemp= Rcpp::as<std::string>(Rcpp::as<Rcpp::List>(Siglist(i))(0));
         Sparamstemp= Rcpp::as<arma::vec>(sigfuncparamslist(i));
         Sdatatemp= Rcpp::as<arma::mat>(Rcpp::as<Rcpp::List>(Siglist(i))(2));
         
         
-        if (i<k){
+        if (i<k) {
           Ztemp=Rcpp::as<arma::mat>(Zlist(i));
           ZKZt=Rcpp::as<arma::mat>(ZKZtlist(i));
-        }else{
+        } else {
           Ztemp=W;
           ZKZt=Rcpp::as<arma::mat>(ZKZtlist(i));
         }
         
         //Rcpp::Rcout  << 99999999999<< std::endl;
         
-        for(int iii=1; iii<(Sparamstemp.n_elem+1); iii++){
+        for(int iii=1; iii<(Sparamstemp.n_elem+1); iii++) {
           //Rcpp::Rcout  << itercountouter << std::endl;
           
           brentout=simplex_minfuncforsigmv(Sparamstemp,tolparconv,100, Sdatatemp, Sfunctiontemp, Omegainv,ZKZt,Rmat, as<arma::mat>(sigmahatlist(i)), tolparinv);
@@ -5895,24 +6036,24 @@ List mmmkmvcorfuncsigmafuncmvopt(const arma::mat & Y,const arma::mat & X, const 
       }
       
       
-      if (itercountouter % 10==0){
-        if (corfunc(i)){
-          if (!corfuncfixed(i)){
-            if (i<k){
+      if (itercountouter % 10==0) {
+        if (corfunc(i)) {
+          if (!corfuncfixed(i)) {
+            if (i<k) {
               Kfunctiontemp= Rcpp::as<std::string>(Rcpp::as<Rcpp::List>(Klist(i))(0));
               Kparamstemp= Rcpp::as<arma::vec>(corfuncparamslist(i));
               Kdatatemp= Rcpp::as<arma::mat>(Rcpp::as<Rcpp::List>(Klist(i))(2));
-            } else { 
+            } else {
               Kfunctiontemp= Rcpp::as<std::string>(Rcpp::as<Rcpp::List>(R(0))(0));
               Kparamstemp= Rcpp::as<arma::vec>(corfuncparamslist(i));
               Kdatatemp= Rcpp::as<arma::mat>(Rcpp::as<Rcpp::List>(R(0))(2));
             }
             
             
-            if (i<k){
+            if (i<k) {
               Ztemp=Rcpp::as<arma::mat>(Zlist(i));
               ZKZt=Rcpp::as<arma::mat>(ZKZtlist(i));
-            }else{
+            } else {
               Ztemp=W;
               ZKZt=Rcpp::as<arma::mat>(ZKZtlist(i));
             }
@@ -5925,7 +6066,7 @@ List mmmkmvcorfuncsigmafuncmvopt(const arma::mat & Y,const arma::mat & X, const 
             ZKZtlist(i)= Ztemp*callViaString(Kparamstemp,Kdatatemp,Kfunctiontemp)*Ztemp.t();
             
           }
-        } 
+        }
       }
     }
     
@@ -5947,15 +6088,15 @@ List mmmkmvcorfuncsigmafuncmvopt(const arma::mat & Y,const arma::mat & X, const 
   for(int i=0; i<(k+1); i++) {
     Omega=Omega+kron(as<arma::mat>(ZKZtlist(i)),as<arma::mat>(sigmahatlist(i)));
   }
-  Omegainv=inv_sympdsamm(Omega,tolparinv);  
+  Omegainv=inv_sympdsamm(Omega,tolparinv);
   
   arma::mat Xforvec=kron(X,eye(d,d));
   arma::mat varBhat =inv(Xforvec.t()*Omegainv*Xforvec);
   List Klistnew(k);
   arma::mat Rnew;
   int nk;
-  for(int i=0; i<(k); i++){
-    if (corfunc(i)){
+  for(int i=0; i<(k); i++) {
+    if (corfunc(i)) {
       Kfunctiontemp= Rcpp::as<std::string>(Rcpp::as<Rcpp::List>(Klist(i))(0));
       Kparamstemp= Rcpp::as<arma::vec>(corfuncparamslist(i));
       Kdatatemp= Rcpp::as<arma::mat>(Rcpp::as<Rcpp::List>(Klist(i))(2));
@@ -5974,7 +6115,7 @@ List mmmkmvcorfuncsigmafuncmvopt(const arma::mat & Y,const arma::mat & X, const 
     
   }
   
-  if (corfunc(k)){
+  if (corfunc(k)) {
     Kfunctiontemp= Rcpp::as<std::string>(Rcpp::as<Rcpp::List>(R(0))(0));
     Kparamstemp=Rcpp::as<arma::vec>(corfuncparamslist(k));
     Kdatatemp= Rcpp::as<arma::mat>(Rcpp::as<Rcpp::List>(R(0))(2));
@@ -5987,8 +6128,8 @@ List mmmkmvcorfuncsigmafuncmvopt(const arma::mat & Y,const arma::mat & X, const 
   
   
   
-  if (geterrors==true){
-    for(int i=0; i<(k); i++){
+  if (geterrors==true) {
+    for(int i=0; i<(k); i++) {
       arma::mat P= Omegainv - Omegainv *Xforvec* varBhat*Xforvec.t()*Omegainv;
       arma::mat Zforvec=kron(as<arma::mat>(Zlist(i)), eye(d,d));
       arma::mat ZKforvec=Zforvec * varvecG;
@@ -5998,7 +6139,7 @@ List mmmkmvcorfuncsigmafuncmvopt(const arma::mat & Y,const arma::mat & X, const 
     
     arma::vec loglik=loglikfuncmmmkmv(Y,X,Zlist, Klistnew,sigmahatlist,Betahat, W, Rnew);
     List outaa;
-    if (Hinv){
+    if (Hinv) {
       outaa=List::create(Rcpp::Named("sigmahatlist") =sigmahatlist,Rcpp::Named("betahat") =betahat, Rcpp::Named("Gpredlist") =Gpredlist,Rcpp::Named("PEVlist") =PEVlist, Rcpp::Named("loglik") =loglik, Rcpp::Named("corfuncparamslist") =corfuncparamslist,Rcpp::Named("sigfuncparamslist") =sigfuncparamslist,Rcpp::Named("Hinv")= HobsInv);
       return outaa;
     }
@@ -6006,10 +6147,10 @@ List mmmkmvcorfuncsigmafuncmvopt(const arma::mat & Y,const arma::mat & X, const 
       outaa=List::create(Rcpp::Named("sigmahatlist") =sigmahatlist,Rcpp::Named("betahat") =betahat, Rcpp::Named("Gpredlist") =Gpredlist,Rcpp::Named("PEVlist") =PEVlist, Rcpp::Named("loglik") =loglik, Rcpp::Named("corfuncparamslist") =corfuncparamslist,Rcpp::Named("sigfuncparamslist") =sigfuncparamslist);
       return outaa;
     }
-  } else { 
+  } else {
     arma::vec loglik=loglikfuncmmmkmv(Y,X,Zlist, Klistnew,sigmahatlist,Betahat, W, Rnew);
     List outaa;
-    if (Hinv){
+    if (Hinv) {
       outaa=List::create(Rcpp::Named("sigmahatlist") =sigmahatlist,Rcpp::Named("betahat") =betahat, Rcpp::Named("Gpredlist") =Gpredlist, Rcpp::Named("loglik") =loglik, Rcpp::Named("corfuncparamslist") =corfuncparamslist,Rcpp::Named("sigfuncparamslist") =sigfuncparamslist,Rcpp::Named("Hinv")= HobsInv);
       return outaa;
     }
@@ -6022,7 +6163,7 @@ List mmmkmvcorfuncsigmafuncmvopt(const arma::mat & Y,const arma::mat & X, const 
 }
 
 ////////////////////////////////////
-using namespace arma; 
+using namespace arma;
 using namespace Rcpp;
 
 
@@ -6031,7 +6172,7 @@ using namespace Rcpp;
 
 // [[Rcpp::depends("RcppArmadillo")]]
 
-bool isidentity(arma::mat a){
+bool isidentity(arma::mat a) {
   bool flag=true;
   for (int i = 0; i < a.n_rows; i++)
   {
@@ -6060,37 +6201,45 @@ bool isidentity(arma::mat a){
 
 // [[Rcpp::depends("RcppArmadillo")]]
 // [[Rcpp::export]]
-List  SAMM(const arma::mat & Y,const arma::mat & X, const Rcpp::List & Zlist, const Rcpp::List & Klist, double lambda, const arma::mat & W,const Rcpp::List & R,const Rcpp::List & Siglist, const arma::uvec & corfunc, const arma::uvec & corfuncfixed, const arma::uvec & sigfunc,const std::string mmalg, const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, bool geterrors=false, bool Hinv=false){
+List  SAMM(const arma::mat & Y,const arma::mat & X, const Rcpp::List & Zlist, const Rcpp::List & Klist, double lambda, const arma::mat & W,const Rcpp::List & R,const Rcpp::List & Siglist, const arma::uvec & corfunc, const arma::uvec & corfuncfixed, const arma::uvec & sigfunc,const std::string mmalg, const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, bool geterrors=false, bool Hinv=false) {
   List outSAM;
   ////univariate/multivariate
   bool univariate=false;
   int ncolY=Y.n_cols;
-  if (!(ncolY>1)){univariate=true;}
+  if (!(ncolY>1)) {
+    univariate=true;
+  }
   //Rcpp::Rcout  << "nkernel:" << std::endl << Zlist.length() << std::endl;
   
   ///one kernel / multi kernel
   bool onekernel=true;
   int nKernel=Zlist.length();
-  if (nKernel>1){onekernel=false;} 
+  if (nKernel>1) {
+    onekernel=false;
+  }
   ///corfunc
   bool corfunctions=false;
-  for (int i=0; i<(nKernel+1); i++){
-    if (corfunc(i)){corfunctions=true;}
+  for (int i=0; i<(nKernel+1); i++) {
+    if (corfunc(i)) {
+      corfunctions=true;
+    }
   }
   
   ///shrinkage
   bool shrink=false;
-  if (lambda>0){shrink=true;}
+  if (lambda>0) {
+    shrink=true;
+  }
   
   ///R diag or not
   bool Rident=false;
-  if (!corfunc(nKernel)){
+  if (!corfunc(nKernel)) {
     Rident=isidentity(Rcpp::as<arma::mat>(R(0)));
     // Rcpp::Rcout  << "Rident:" << std::endl << Rident << std::endl;
   }
   
   bool Wident=false;
-  if (!corfunc(nKernel)){
+  if (!corfunc(nKernel)) {
     Wident=isidentity(W);
     // Rcpp::Rcout  << "Rident:" << std::endl << Rident << std::endl;
   }
@@ -6100,38 +6249,38 @@ List  SAMM(const arma::mat & Y,const arma::mat & X, const Rcpp::List & Zlist, co
   //Rcpp::Rcout  << corfunctions << std::endl;
   
   ///####################1
-  if (univariate){
-    if (onekernel){
-      if (!corfunctions){
-        if ((Rident && Wident)){
+  if (univariate) {
+    if (onekernel) {
+      if (!corfunctions) {
+        if ((Rident && Wident)) {
           //Rcpp::Rcout  << 1 << std::endl;
-          if (mmalg=="emm_reml"){
+          if (mmalg=="emm_reml") {
             //emm(const arma::colvec & y,const arma::mat & X,const arma::mat & Z, const arma::mat & K, const bool & REML=true, const double & tolparconv=1e-7, const int maxiter=1000, bool geterrors=false)
             outSAM=emm(vectorise(Y), X,Zlist, Klist, true,tolparconv, maxiter,geterrors,Hinv);
-          } 
-          else if (mmalg=="emm_ml"){
+          }
+          else if (mmalg=="emm_ml") {
             //emm(const arma::colvec & y,const arma::mat & X,const arma::mat & Z, const arma::mat & K, const bool & REML=true, const double & tolparconv=1e-7, const int maxiter=1000, bool geterrors=false)
             outSAM=emm(vectorise(Y), X,Zlist, Klist, false,tolparconv, maxiter,geterrors,Hinv);
-          } 
+          }
           
-          else if (mmalg=="dmm_ml"){
-            // dmm(const arma::colvec & y,const arma::mat & X,const arma::mat & Z, const Rcpp::List & Kfunc, const arma::mat & W, const arma::mat & R,const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, bool geterrors=false, bool REML=false){ 
+          else if (mmalg=="dmm_ml") {
+            // dmm(const arma::colvec & y,const arma::mat & X,const arma::mat & Z, const Rcpp::List & Kfunc, const arma::mat & W, const arma::mat & R,const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, bool geterrors=false, bool REML=false){
             outSAM=dmm(vectorise(Y), X,Rcpp::as<arma::mat>(Zlist(0)), as<Rcpp::List>(Klist(0)), W,Rcpp::as<arma::mat>(R(0)),tolparconv, tolparinv,maxiter, geterrors,false,Hinv);
-          } 
-          else if (mmalg=="dmm_reml"){
-            // dmm(const arma::colvec & y,const arma::mat & X,const arma::mat & Z, const Rcpp::List & Kfunc, const arma::mat & W, const arma::mat & R,const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, bool geterrors=false, bool REML=false){ 
+          }
+          else if (mmalg=="dmm_reml") {
+            // dmm(const arma::colvec & y,const arma::mat & X,const arma::mat & Z, const Rcpp::List & Kfunc, const arma::mat & W, const arma::mat & R,const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, bool geterrors=false, bool REML=false){
             outSAM=dmm(vectorise(Y), X,Rcpp::as<arma::mat>(Zlist(0)), as<Rcpp::List>(Klist(0)), W,Rcpp::as<arma::mat>(R(0)),tolparconv, tolparinv,maxiter, geterrors,true,Hinv);
-          } 
-          else if (mmalg=="dermm_reml1"){
+          }
+          else if (mmalg=="dermm_reml1") {
             //dermm(const arma::vec & y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W, const Rcpp::List & R, const arma::uvec & corfunc,const arma::uvec & corfuncfixed,const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, const bool & geterrors=false,const int  & methodopt=0)
             outSAM=dermm(vectorise(Y), X,Zlist, Klist, W,R,corfunc, corfuncfixed, tolparconv, tolparinv,maxiter, geterrors, 1,Hinv);
-          } 
-          else if (mmalg=="dermm_reml2"){
+          }
+          else if (mmalg=="dermm_reml2") {
             //dermm(const arma::vec & y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W, const Rcpp::List & R, const arma::uvec & corfunc,const arma::uvec & corfuncfixed,const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, const bool & geterrors=false,const int  & methodopt=0)
             outSAM=dermm(vectorise(Y), X,Zlist, Klist, W,R,corfunc, corfuncfixed, tolparconv, tolparinv,maxiter, geterrors, 2,Hinv);
-          } 
+          }
           
-          else if (mmalg=="mm_ml"){
+          else if (mmalg=="mm_ml") {
             List Zlist0(2);
             List Klist0(2);
             Zlist0(0)=Rcpp::as<arma::mat>(Zlist(0));
@@ -6139,37 +6288,37 @@ List  SAMM(const arma::mat & Y,const arma::mat & X, const Rcpp::List & Zlist, co
             Klist0(0)=Rcpp::as<arma::mat>(Klist(0));
             Klist0(1)=Rcpp::as<arma::mat>(R(0));
             
-            // 
+            //
             outSAM=mm(vectorise(Y), X,Zlist0, Klist0,tolparconv, tolparinv,maxiter, geterrors,Hinv);
           }
           
-          else if (mmalg=="emmmk_reml"){
-            //List emmmk(const arma::vec  y,const arma::mat  X,const Rcpp::List  Zlist, const Rcpp::List  Klist, const double  tolparconv=1e-9, const int  maxiter=1000, bool REML=true, bool geterrors=false){ 
+          else if (mmalg=="emmmk_reml") {
+            //List emmmk(const arma::vec  y,const arma::mat  X,const Rcpp::List  Zlist, const Rcpp::List  Klist, const double  tolparconv=1e-9, const int  maxiter=1000, bool REML=true, bool geterrors=false){
             outSAM=emmmk(vectorise(Y), X,Zlist, Klist, tolparconv,maxiter, true,geterrors,Hinv);
-          } 
-          else if (mmalg=="emmmk_ml"){
-            //List emmmk(const arma::vec  y,const arma::mat  X,const Rcpp::List  Zlist, const Rcpp::List  Klist, const double  tolparconv=1e-9, const int  maxiter=1000, bool REML=true, bool geterrors=false){ 
+          }
+          else if (mmalg=="emmmk_ml") {
+            //List emmmk(const arma::vec  y,const arma::mat  X,const Rcpp::List  Zlist, const Rcpp::List  Klist, const double  tolparconv=1e-9, const int  maxiter=1000, bool REML=true, bool geterrors=false){
             outSAM=emmmk(vectorise(Y), X,Zlist, Klist, tolparconv,maxiter, false,geterrors,Hinv);
-          } 
+          }
           
-          else if (mmalg=="mmmk_ml"){
-            //List mmmk(const arma::colvec & y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, arma::mat & W, arma::mat & R,const double & tolparconv=1e-10, const int & maxiter=200, bool geterrors=false, double lambda=0){ 
+          else if (mmalg=="mmmk_ml") {
+            //List mmmk(const arma::colvec & y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, arma::mat & W, arma::mat & R,const double & tolparconv=1e-10, const int & maxiter=200, bool geterrors=false, double lambda=0){
             arma::mat Rmat=Rcpp::as<arma::mat>(R(0));
             outSAM=mmmk(vectorise(Y), X,Zlist, Klist, W,Rmat, tolparconv,tolparinv,maxiter, geterrors, lambda,Hinv);
-          } 
+          }
           
           
-          else if (mmalg=="emmmv_ml"){
-            //List emmmv(arma::mat & Y,arma::mat & X,const arma::mat & Z, const arma::mat & K,const double & tolparconv=1e-8, double tolparinv=1e-8,const int & maxiter=500, bool geterrors=false){ 
+          else if (mmalg=="emmmv_ml") {
+            //List emmmv(arma::mat & Y,arma::mat & X,const arma::mat & Z, const arma::mat & K,const double & tolparconv=1e-8, double tolparinv=1e-8,const int & maxiter=500, bool geterrors=false){
             arma::mat Zmat=Rcpp::as<arma::mat>(Zlist(0));
             arma::mat Kmat=Rcpp::as<arma::mat>(Klist(0));
             outSAM=emmmv(Y,X,Zmat, Kmat, tolparconv,tolparinv,maxiter, geterrors,Hinv);
           }
-          else if (mmalg=="mmmv_ml"){
-            //List mmmv(const arma::mat & Y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W,const arma::mat & R,const double & tolparconv=1e-9, const double & tolparinv=1e-9,const int & maxiter=200,const  bool & geterrors=false){ 
+          else if (mmalg=="mmmv_ml") {
+            //List mmmv(const arma::mat & Y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W,const arma::mat & R,const double & tolparconv=1e-9, const double & tolparinv=1e-9,const int & maxiter=200,const  bool & geterrors=false){
             arma::mat Rmat=Rcpp::as<arma::mat>(R(0));
             outSAM=mmmv(Y,X,Zlist, Klist, W, Rmat,tolparconv,tolparinv,maxiter, geterrors,Hinv);
-          } 
+          }
           
           
         }
@@ -6179,20 +6328,20 @@ List  SAMM(const arma::mat & Y,const arma::mat & X, const Rcpp::List & Zlist, co
   
   
   ///####################2
-  if (univariate){
-    if (onekernel){
-      if (!corfunctions){
-        if (!(Rident && Wident)){
+  if (univariate) {
+    if (onekernel) {
+      if (!corfunctions) {
+        if (!(Rident && Wident)) {
           //Rcpp::Rcout  << 2<< std::endl;
-          if (mmalg=="dmm_ml"){
-            // dmm(const arma::colvec & y,const arma::mat & X,const arma::mat & Z, const Rcpp::List & Kfunc, const arma::mat & W, const arma::mat & R,const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, bool geterrors=false, bool REML=false){ 
+          if (mmalg=="dmm_ml") {
+            // dmm(const arma::colvec & y,const arma::mat & X,const arma::mat & Z, const Rcpp::List & Kfunc, const arma::mat & W, const arma::mat & R,const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, bool geterrors=false, bool REML=false){
             outSAM=dmm(vectorise(Y), X,Rcpp::as<arma::mat>(Zlist(0)), as<Rcpp::List>(Klist(0)), W,Rcpp::as<arma::mat>(R(0)),tolparconv, tolparinv,maxiter, geterrors,false,Hinv);
-          } 
-          else if (mmalg=="dmm_reml"){
-            // dmm(const arma::colvec & y,const arma::mat & X,const arma::mat & Z, const Rcpp::List & Kfunc, const arma::mat & W, const arma::mat & R,const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, bool geterrors=false, bool REML=false){ 
+          }
+          else if (mmalg=="dmm_reml") {
+            // dmm(const arma::colvec & y,const arma::mat & X,const arma::mat & Z, const Rcpp::List & Kfunc, const arma::mat & W, const arma::mat & R,const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, bool geterrors=false, bool REML=false){
             outSAM=dmm(vectorise(Y), X,Rcpp::as<arma::mat>(Zlist(0)), as<Rcpp::List>(Klist(0)), W,Rcpp::as<arma::mat>(R(0)),tolparconv, tolparinv,maxiter, geterrors,true,Hinv);
-          } 
-          else if (mmalg=="mm_ml"){
+          }
+          else if (mmalg=="mm_ml") {
             //mm(const arma::colvec & y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, bool geterrors=false)
             List Zlist0(2);
             List Klist0(2);
@@ -6201,34 +6350,34 @@ List  SAMM(const arma::mat & Y,const arma::mat & X, const Rcpp::List & Zlist, co
             Klist0(0)=Rcpp::as<arma::mat>(Klist(0));
             Klist0(1)=Rcpp::as<arma::mat>(R(0));
             
-            // 
+            //
             outSAM=mm(vectorise(Y), X,Zlist0, Klist0,tolparconv, tolparinv,maxiter, geterrors,Hinv);
-          } 
-          else if (mmalg=="dermm_reml1"){
+          }
+          else if (mmalg=="dermm_reml1") {
             //dermm(const arma::vec & y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W, const Rcpp::List & R, const arma::uvec & corfunc,const arma::uvec & corfuncfixed,const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, const bool & geterrors=false,const int  & methodopt=0)
             outSAM=dermm(vectorise(Y), X,Zlist, Klist, W,R,corfunc, corfuncfixed, tolparconv, tolparinv,maxiter, geterrors, 1,Hinv);
-          } 
-          else if (mmalg=="dermm_reml2"){
+          }
+          else if (mmalg=="dermm_reml2") {
             //dermm(const arma::vec & y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W, const Rcpp::List & R, const arma::uvec & corfunc,const arma::uvec & corfuncfixed,const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, const bool & geterrors=false,const int  & methodopt=0)
             outSAM=dermm(vectorise(Y), X,Zlist, Klist, W,R,corfunc, corfuncfixed, tolparconv, tolparinv,maxiter, geterrors, 2,Hinv);
-          } 
-          else if (mmalg=="mmmk_ml"){
-            //List mmmk(const arma::colvec & y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, arma::mat & W, arma::mat & R,const double & tolparconv=1e-10, const int & maxiter=200, bool geterrors=false, double lambda=0){ 
+          }
+          else if (mmalg=="mmmk_ml") {
+            //List mmmk(const arma::colvec & y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, arma::mat & W, arma::mat & R,const double & tolparconv=1e-10, const int & maxiter=200, bool geterrors=false, double lambda=0){
             arma::mat Rmat=Rcpp::as<arma::mat>(R(0));
             outSAM=mmmk(vectorise(Y), X,Zlist, Klist, W,Rmat, tolparconv,tolparinv,maxiter, geterrors, lambda,Hinv);
-          } 
-          else if (mmalg=="mmmv_ml"){
-            //List mmmv(const arma::mat & Y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W,const arma::mat & R,const double & tolparconv=1e-9, const double & tolparinv=1e-9,const int & maxiter=200,const  bool & geterrors=false){ 
+          }
+          else if (mmalg=="mmmv_ml") {
+            //List mmmv(const arma::mat & Y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W,const arma::mat & R,const double & tolparconv=1e-9, const double & tolparinv=1e-9,const int & maxiter=200,const  bool & geterrors=false){
             arma::mat Rmat=Rcpp::as<arma::mat>(R(0));
             outSAM=mmmv(Y,X,Zlist, Klist, W, Rmat,tolparconv,tolparinv,maxiter, geterrors,Hinv);
-          } 
+          }
           
-          //List mmmkmv(const arma::mat & Y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W,const arma::mat & R,const double & tolparconv=1e-9, const double & tolparinv=1e-9,const int & maxiter=200, bool geterrors=false){ 
-          else if (mmalg=="mmmkmv_ml"){
-            //List mmmv(const arma::mat & Y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W,const arma::mat & R,const double & tolparconv=1e-9, const double & tolparinv=1e-9,const int & maxiter=200,const  bool & geterrors=false){ 
+          //List mmmkmv(const arma::mat & Y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W,const arma::mat & R,const double & tolparconv=1e-9, const double & tolparinv=1e-9,const int & maxiter=200, bool geterrors=false){
+          else if (mmalg=="mmmkmv_ml") {
+            //List mmmv(const arma::mat & Y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W,const arma::mat & R,const double & tolparconv=1e-9, const double & tolparinv=1e-9,const int & maxiter=200,const  bool & geterrors=false){
             arma::mat Rmat=Rcpp::as<arma::mat>(R(0));
             outSAM=mmmkmv(Y,X,Zlist, Klist, W, Rmat,tolparconv,tolparinv,maxiter, geterrors,Hinv);
-          } 
+          }
         }
       }
     }
@@ -6236,93 +6385,67 @@ List  SAMM(const arma::mat & Y,const arma::mat & X, const Rcpp::List & Zlist, co
   
   
   ///####################3
-  if (univariate){
-    if (onekernel){
-      if ((corfunc(0) && !corfunc(1))){
+  if (univariate) {
+    if (onekernel) {
+      if ((corfunc(0) && !corfunc(1))) {
         //Rcpp::Rcout  << 3 << std::endl;
-        if (mmalg=="dmm_ml"){
-          // dmm(const arma::colvec & y,const arma::mat & X,const arma::mat & Z, const Rcpp::List & Kfunc, const arma::mat & W, const arma::mat & R,const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, bool geterrors=false, bool REML=false){ 
+        if (mmalg=="dmm_ml") {
+          // dmm(const arma::colvec & y,const arma::mat & X,const arma::mat & Z, const Rcpp::List & Kfunc, const arma::mat & W, const arma::mat & R,const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, bool geterrors=false, bool REML=false){
           outSAM=dmm(vectorise(Y), X,Rcpp::as<arma::mat>(Zlist(0)), as<Rcpp::List>(Klist(0)), W,Rcpp::as<arma::mat>(R(0)),tolparconv, tolparinv,maxiter, geterrors,false,Hinv);
-        } 
-        else if (mmalg=="dmm_reml"){
-          // dmm(const arma::colvec & y,const arma::mat & X,const arma::mat & Z, const Rcpp::List & Kfunc, const arma::mat & W, const arma::mat & R,const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, bool geterrors=false, bool REML=false){ 
+        }
+        else if (mmalg=="dmm_reml") {
+          // dmm(const arma::colvec & y,const arma::mat & X,const arma::mat & Z, const Rcpp::List & Kfunc, const arma::mat & W, const arma::mat & R,const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, bool geterrors=false, bool REML=false){
           outSAM=dmm(vectorise(Y), X,Rcpp::as<arma::mat>(Zlist(0)), as<Rcpp::List>(Klist(0)), W,Rcpp::as<arma::mat>(R(0)),tolparconv, tolparinv,maxiter, geterrors,true,Hinv);
-        } 
+        }
         
-        else if (mmalg=="dermm_reml1"){
+        else if (mmalg=="dermm_reml1") {
           //dermm(const arma::vec & y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W, const Rcpp::List & R, const arma::uvec & corfunc,const arma::uvec & corfuncfixed,const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, const bool & geterrors=false,const int  & methodopt=0)
           outSAM=dermm(vectorise(Y), X,Zlist, Klist, W,R,corfunc, corfuncfixed, tolparconv, tolparinv,maxiter, geterrors, 1,Hinv);
-        } 
-        else if (mmalg=="dermm_reml2"){
+        }
+        else if (mmalg=="dermm_reml2") {
           //dermm(const arma::vec & y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W, const Rcpp::List & R, const arma::uvec & corfunc,const arma::uvec & corfuncfixed,const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, const bool & geterrors=false,const int  & methodopt=0)
           outSAM=dermm(vectorise(Y), X,Zlist, Klist, W,R,corfunc, corfuncfixed, tolparconv, tolparinv,maxiter, geterrors, 2,Hinv);
-        } 
-        else if (mmalg=="mmmk_ml"){
-          //List mmmkcorfuncmvopt(const arma::colvec & y,const arma::mat & X, const arma::uvec & corfunc,const arma::uvec & corfuncfixed,const Rcpp::List & Zlist, const Rcpp::List & Klist, arma::mat & W, Rcpp::List & R,const double & tolparconv=1e-10, const int & maxiter=200, bool geterrors=false, double lambda=0){ 
-          outSAM=mmmkcorfuncmvopt(vectorise(Y), X,corfunc, corfuncfixed, Zlist, Klist, W,R,tolparconv,tolparinv,maxiter, geterrors,lambda,Hinv);
-        } 
-        
-        else if (mmalg=="mmmkmv_ml"){
-          // List mmmkmvcorfuncsigmafuncmvopt(const arma::mat & Y,const arma::mat & X, const arma::uvec & corfunc,const arma::uvec & corfuncfixed, const arma::uvec & sigfunc,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W,const Rcpp::List & R,const Rcpp::List & Siglist,const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, bool geterrors=false){ 
-          outSAM=mmmkmvcorfuncsigmafuncmvopt(Y, X,corfunc, corfuncfixed, sigfunc,Zlist, Klist, W,R,Siglist,tolparconv,tolparinv,maxiter, geterrors,Hinv);
         }
       }
     }
   }
   
-  
-  ///####################3
-  if (univariate){
-    if (onekernel){
-      if ((corfunc(0) && corfunc(1))){
-        if (mmalg=="mmmk_ml"){
-          //List mmmkcorfuncmvopt(const arma::colvec & y,const arma::mat & X, const arma::uvec & corfunc,const arma::uvec & corfuncfixed,const Rcpp::List & Zlist, const Rcpp::List & Klist, arma::mat & W, Rcpp::List & R,const double & tolparconv=1e-10, const int & maxiter=200, bool geterrors=false, double lambda=0){ 
-          outSAM=mmmkcorfuncmvopt(vectorise(Y), X,corfunc, corfuncfixed, Zlist, Klist, W,R,tolparconv,tolparinv,maxiter, geterrors,lambda,Hinv);
-        } 
-        
-        else if (mmalg=="mmmkmv_ml"){
-          // List mmmkmvcorfuncsigmafuncmvopt(const arma::mat & Y,const arma::mat & X, const arma::uvec & corfunc,const arma::uvec & corfuncfixed, const arma::uvec & sigfunc,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W,const Rcpp::List & R,const Rcpp::List & Siglist,const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, bool geterrors=false){ 
-          outSAM=mmmkmvcorfuncsigmafuncmvopt(Y, X,corfunc, corfuncfixed, sigfunc,Zlist, Klist, W,R,Siglist,tolparconv,tolparinv,maxiter, geterrors,Hinv);
-        }
-      }
-    }
-  }
   
   
   ////################4
   
-  if (univariate){
-    if (!onekernel){
-      if (!corfunctions){
-        if (!shrink){
-          if ((Rident && Wident)){
+  if (univariate) {
+    if (!onekernel) {
+      if (!corfunctions) {
+        if (!shrink) {
+          if ((Rident && Wident)) {
             //Rcpp::Rcout  << 4 << std::endl;
-            if (mmalg=="emmmk_reml"){
-              //List emmmk(const arma::vec  y,const arma::mat  X,const Rcpp::List  Zlist, const Rcpp::List  Klist, const double  tolparconv=1e-9, const int  maxiter=1000, bool REML=true, bool geterrors=false){ 
+            if (mmalg=="emmmk_reml") {
+              //List emmmk(const arma::vec  y,const arma::mat  X,const Rcpp::List  Zlist, const Rcpp::List  Klist, const double  tolparconv=1e-9, const int  maxiter=1000, bool REML=true, bool geterrors=false){
               outSAM=emmmk(vectorise(Y), X,Zlist, Klist, tolparconv,maxiter, true,geterrors,Hinv);
-            } 
-            else if (mmalg=="emmmk_ml"){
-              //List emmmk(const arma::vec  y,const arma::mat  X,const Rcpp::List  Zlist, const Rcpp::List  Klist, const double  tolparconv=1e-9, const int  maxiter=1000, bool REML=true, bool geterrors=false){ 
+            }
+            else if (mmalg=="emmmk_ml") {
+              //List emmmk(const arma::vec  y,const arma::mat  X,const Rcpp::List  Zlist, const Rcpp::List  Klist, const double  tolparconv=1e-9, const int  maxiter=1000, bool REML=true, bool geterrors=false){
               outSAM=emmmk(vectorise(Y), X,Zlist, Klist, tolparconv,maxiter, false,geterrors,Hinv);
-            } 
-            else if (mmalg=="dermm_reml1"){
+            }
+            else if (mmalg=="dermm_reml1") {
               //dermm(const arma::vec & y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W, const Rcpp::List & R, const arma::uvec & corfunc,const arma::uvec & corfuncfixed,const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, const bool & geterrors=false,const int  & methodopt=0)
               outSAM=dermm(vectorise(Y), X,Zlist, Klist, W,R,corfunc, corfuncfixed, tolparconv, tolparinv,maxiter, geterrors, 1,Hinv);
-            } 
-            else if (mmalg=="dermm_reml2"){
+            }
+            else if (mmalg=="dermm_reml2") {
               //dermm(const arma::vec & y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W, const Rcpp::List & R, const arma::uvec & corfunc,const arma::uvec & corfuncfixed,const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, const bool & geterrors=false,const int  & methodopt=0)
               outSAM=dermm(vectorise(Y), X,Zlist, Klist, W,R,corfunc, corfuncfixed, tolparconv, tolparinv,maxiter, geterrors, 2,Hinv);
-            } 
-            else if (mmalg=="mmmk_ml"){
-              //List mmmk(const arma::colvec & y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, arma::mat & W, arma::mat & R,const double & tolparconv=1e-10, const int & maxiter=200, bool geterrors=false, double lambda=0){ 
+            }
+            else if (mmalg=="mmmk_ml") {
+              //List mmmk(const arma::colvec & y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, arma::mat & W, arma::mat & R,const double & tolparconv=1e-10, const int & maxiter=200, bool geterrors=false, double lambda=0){
               arma::mat Rmat=Rcpp::as<arma::mat>(R(0));
               outSAM=mmmk(vectorise(Y), X,Zlist, Klist, W,Rmat, tolparconv,tolparinv,maxiter, geterrors, lambda,Hinv);
-            } 
-            else if (mmalg=="mmmkmv_ml"){
-              //List mmmkmv(const arma::mat & Y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W,const arma::mat & R,const double & tolparconv=1e-9, const double & tolparinv=1e-9,const int & maxiter=200, bool geterrors=false){ 
+            }
+            else if (mmalg=="mmmkmv_ml") {
+              //List mmmkmv(const arma::mat & Y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W,const arma::mat & R,const double & tolparconv=1e-9, const double & tolparinv=1e-9,const int & maxiter=200, bool geterrors=false){
               arma::mat Rmat=Rcpp::as<arma::mat>(R(0));
               outSAM=mmmkmv(Y, X,Zlist, Klist, W,Rmat, tolparconv,tolparinv, maxiter, geterrors,Hinv);
-            } 
+            }
             
           }
         }
@@ -6331,30 +6454,30 @@ List  SAMM(const arma::mat & Y,const arma::mat & X, const Rcpp::List & Zlist, co
   }
   ////################5
   
-  if (univariate){
-    if (!onekernel){
-      if (!shrink){
-        if (!corfunctions){
-          if (!(Rident && Wident)){
+  if (univariate) {
+    if (!onekernel) {
+      if (!shrink) {
+        if (!corfunctions) {
+          if (!(Rident && Wident)) {
             //Rcpp::Rcout  << 5 << std::endl;
-            if (mmalg=="mmmk_ml"){
-              //List mmmk(const arma::colvec & y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, arma::mat & W, arma::mat & R,const double & tolparconv=1e-10, const int & maxiter=200, bool geterrors=false, double lambda=0){ 
+            if (mmalg=="mmmk_ml") {
+              //List mmmk(const arma::colvec & y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, arma::mat & W, arma::mat & R,const double & tolparconv=1e-10, const int & maxiter=200, bool geterrors=false, double lambda=0){
               arma::mat Rmat=Rcpp::as<arma::mat>(R(0));
               outSAM=mmmk(vectorise(Y), X,Zlist, Klist, W,Rmat, tolparconv,tolparinv,maxiter, geterrors, lambda,Hinv);
-            } 
-            else if (mmalg=="dermm_reml1"){
+            }
+            else if (mmalg=="dermm_reml1") {
               //dermm(const arma::vec & y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W, const Rcpp::List & R, const arma::uvec & corfunc,const arma::uvec & corfuncfixed,const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, const bool & geterrors=false,const int  & methodopt=0)
               outSAM=dermm(vectorise(Y), X,Zlist, Klist, W,R,corfunc, corfuncfixed, tolparconv, tolparinv,maxiter, geterrors, 1,Hinv);
-            } 
-            else if (mmalg=="dermm_reml2"){
+            }
+            else if (mmalg=="dermm_reml2") {
               //dermm(const arma::vec & y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W, const Rcpp::List & R, const arma::uvec & corfunc,const arma::uvec & corfuncfixed,const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, const bool & geterrors=false,const int  & methodopt=0)
               outSAM=dermm(vectorise(Y), X,Zlist, Klist, W,R,corfunc, corfuncfixed, tolparconv, tolparinv,maxiter, geterrors, 2,Hinv);
-            } 
-            else if (mmalg=="mmmkmv_ml"){
-              //List mmmkmv(const arma::mat & Y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W,const arma::mat & R,const double & tolparconv=1e-9, const double & tolparinv=1e-9,const int & maxiter=200, bool geterrors=false){ 
+            }
+            else if (mmalg=="mmmkmv_ml") {
+              //List mmmkmv(const arma::mat & Y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W,const arma::mat & R,const double & tolparconv=1e-9, const double & tolparinv=1e-9,const int & maxiter=200, bool geterrors=false){
               arma::mat Rmat=Rcpp::as<arma::mat>(R(0));
               outSAM=mmmkmv(Y, X,Zlist, Klist, W,Rmat, tolparconv,tolparinv, maxiter, geterrors,Hinv);
-            } 
+            }
           }
         }
       }
@@ -6364,29 +6487,54 @@ List  SAMM(const arma::mat & Y,const arma::mat & X, const Rcpp::List & Zlist, co
   
   ////################4.2
   
+  
   ////################5.2
   
-  if (univariate){
-    if (!onekernel){
-      if (!shrink){
-        if (corfunctions){
+  if (univariate) {
+    if (onekernel) {
+      if (!shrink) {
+        if (corfunctions) {
           //Rcpp::Rcout  << 6 << std::endl;
-          if (mmalg=="mmmk_ml"){
-            //List mmmkcorfuncmvopt(const arma::colvec & y,const arma::mat & X, const arma::uvec & corfunc,const arma::uvec & corfuncfixed,const Rcpp::List & Zlist, const Rcpp::List & Klist, arma::mat & W, Rcpp::List & R,const double & tolparconv=1e-10, const int & maxiter=200, bool geterrors=false, double lambda=0){ 
+          if (mmalg=="mmmk_ml") {
+            //List mmmkcorfuncmvopt(const arma::colvec & y,const arma::mat & X, const arma::uvec & corfunc,const arma::uvec & corfuncfixed,const Rcpp::List & Zlist, const Rcpp::List & Klist, arma::mat & W, Rcpp::List & R,const double & tolparconv=1e-10, const int & maxiter=200, bool geterrors=false, double lambda=0){
             outSAM=mmmkcorfuncmvopt(vectorise(Y), X,corfunc, corfuncfixed, Zlist, Klist, W,R,tolparconv,tolparinv,maxiter, geterrors,0,Hinv);
-          } 
-          else if (mmalg=="dermm_reml1"){
+          }
+          else if (mmalg=="dermm_reml1") {
             //dermm(const arma::vec & y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W, const Rcpp::List & R, const arma::uvec & corfunc,const arma::uvec & corfuncfixed,const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, const bool & geterrors=false,const int  & methodopt=0)
             outSAM=dermm(vectorise(Y), X,Zlist, Klist, W,R,corfunc, corfuncfixed, tolparconv, tolparinv,maxiter, geterrors, 1,Hinv);
-          } 
-          else if (mmalg=="dermm_reml2"){
+          }
+          else if (mmalg=="dermm_reml2") {
             //dermm(const arma::vec & y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W, const Rcpp::List & R, const arma::uvec & corfunc,const arma::uvec & corfuncfixed,const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, const bool & geterrors=false,const int  & methodopt=0)
             outSAM=dermm(vectorise(Y), X,Zlist, Klist, W,R,corfunc, corfuncfixed, tolparconv, tolparinv,maxiter, geterrors, 2,Hinv);
-          } 
-          else if (mmalg=="mmmkmv_ml"){
-            // List mmmkmvcorfuncsigmafuncmvopt(const arma::mat & Y,const arma::mat & X, const arma::uvec & corfunc,const arma::uvec & corfuncfixed, const arma::uvec & sigfunc,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W,const Rcpp::List & R,const Rcpp::List & Siglist,const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, bool geterrors=false){ 
-            outSAM=mmmkmvcorfuncsigmafuncmvopt(Y, X,corfunc, corfuncfixed, sigfunc,Zlist, Klist, W,R,Siglist,tolparconv,tolparinv,maxiter, geterrors,Hinv);
           }
+          
+        }
+      }
+    }
+  }
+  
+  
+  
+  ////################5.2
+  
+  if (univariate) {
+    if (!onekernel) {
+      if (!shrink) {
+        if (corfunctions) {
+          //Rcpp::Rcout  << 6 << std::endl;
+          if (mmalg=="mmmk_ml") {
+            //List mmmkcorfuncmvopt(const arma::colvec & y,const arma::mat & X, const arma::uvec & corfunc,const arma::uvec & corfuncfixed,const Rcpp::List & Zlist, const Rcpp::List & Klist, arma::mat & W, Rcpp::List & R,const double & tolparconv=1e-10, const int & maxiter=200, bool geterrors=false, double lambda=0){
+            outSAM=mmmkcorfuncmvopt(vectorise(Y), X,corfunc, corfuncfixed, Zlist, Klist, W,R,tolparconv,tolparinv,maxiter, geterrors,0,Hinv);
+          }
+          else if (mmalg=="dermm_reml1") {
+            //dermm(const arma::vec & y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W, const Rcpp::List & R, const arma::uvec & corfunc,const arma::uvec & corfuncfixed,const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, const bool & geterrors=false,const int  & methodopt=0)
+            outSAM=dermm(vectorise(Y), X,Zlist, Klist, W,R,corfunc, corfuncfixed, tolparconv, tolparinv,maxiter, geterrors, 1,Hinv);
+          }
+          else if (mmalg=="dermm_reml2") {
+            //dermm(const arma::vec & y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W, const Rcpp::List & R, const arma::uvec & corfunc,const arma::uvec & corfuncfixed,const double & tolparconv=1e-10, const double & tolparinv=1e-10,const int & maxiter=1000, const bool & geterrors=false,const int  & methodopt=0)
+            outSAM=dermm(vectorise(Y), X,Zlist, Klist, W,R,corfunc, corfuncfixed, tolparconv, tolparinv,maxiter, geterrors, 2,Hinv);
+          }
+          
         }
       }
     }
@@ -6396,19 +6544,19 @@ List  SAMM(const arma::mat & Y,const arma::mat & X, const Rcpp::List & Zlist, co
   /////////////////////////////
   ////################4
   
-  if (univariate){
-    if (!onekernel){
-      if (!corfunctions){
-        if (shrink){
+  if (univariate) {
+    if (!onekernel) {
+      if (!corfunctions) {
+        if (shrink) {
           //Rcpp::Rcout  << 7 << std::endl;
-          if (mmalg=="mmmk_ml"){
-            //List mmmk(const arma::colvec & y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, arma::mat & W, arma::mat & R,const double & tolparconv=1e-10, const int & maxiter=200, bool geterrors=false, double lambda=0){ 
+          if (mmalg=="mmmk_ml") {
+            //List mmmk(const arma::colvec & y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, arma::mat & W, arma::mat & R,const double & tolparconv=1e-10, const int & maxiter=200, bool geterrors=false, double lambda=0){
             arma::mat Rmat=Rcpp::as<arma::mat>(R(0));
             //Rcpp::Rcout  <<lambda << std::endl;
-            //  List mmmk(y,X,Zlist,Klist,W,R,1e-10 ,const double & tolparinv=1e-10,const int & maxiter=200, bool geterrors=false, const double & lambda=0){ 
+            //  List mmmk(y,X,Zlist,Klist,W,R,1e-10 ,const double & tolparinv=1e-10,const int & maxiter=200, bool geterrors=false, const double & lambda=0){
             
             outSAM=mmmk(vectorise(Y), X,Zlist, Klist, W,Rmat, tolparconv,tolparinv,maxiter, geterrors, lambda,Hinv);
-          } 
+          }
           
         }
       }
@@ -6420,15 +6568,15 @@ List  SAMM(const arma::mat & Y,const arma::mat & X, const Rcpp::List & Zlist, co
   
   ////################5.2
   
-  if (univariate){
-    if (!onekernel){
-      if (shrink){
-        if (corfunctions){
+  if (univariate) {
+    if (!onekernel) {
+      if (shrink) {
+        if (corfunctions) {
           //Rcpp::Rcout  <<8 << std::endl;
-          if (mmalg=="mmmk_ml"){
-            //List mmmkcorfuncmvopt(const arma::colvec & y,const arma::mat & X, const arma::uvec & corfunc,const arma::uvec & corfuncfixed,const Rcpp::List & Zlist, const Rcpp::List & Klist, arma::mat & W, Rcpp::List & R,const double & tolparconv=1e-10, const int & maxiter=200, bool geterrors=false, double lambda=0){ 
+          if (mmalg=="mmmk_ml") {
+            //List mmmkcorfuncmvopt(const arma::colvec & y,const arma::mat & X, const arma::uvec & corfunc,const arma::uvec & corfuncfixed,const Rcpp::List & Zlist, const Rcpp::List & Klist, arma::mat & W, Rcpp::List & R,const double & tolparconv=1e-10, const int & maxiter=200, bool geterrors=false, double lambda=0){
             outSAM=mmmkcorfuncmvopt(vectorise(Y), X,corfunc, corfuncfixed, Zlist, Klist, W,R,tolparconv,tolparinv,maxiter, geterrors,lambda,Hinv);
-          } 
+          }
           
         }
       }
@@ -6446,23 +6594,23 @@ List  SAMM(const arma::mat & Y,const arma::mat & X, const Rcpp::List & Zlist, co
   
   ////################6
   
-  if (!univariate){
-    if (onekernel){
-      if (!corfunctions){
-        if ((Rident && Wident)){
+  if (!univariate) {
+    if (onekernel) {
+      if (!corfunctions) {
+        if ((Rident && Wident)) {
           // Rcpp::Rcout  << 9 << std::endl;
-          if (mmalg=="emmmv"){
+          if (mmalg=="emmmv_ml") {
             arma::mat Zmat=Rcpp::as<arma::mat>(Zlist(0));
             arma::mat Kmat=Rcpp::as<arma::mat>(Klist(0));
             outSAM=emmmv(Y,X,Zmat, Kmat, tolparconv,tolparinv,maxiter, geterrors,Hinv);
-          } 
+          }
           
-          else if (mmalg=="mmmv_ml"){
-            //List mmmv(const arma::mat & Y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W,const arma::mat & R,const double & tolparconv=1e-9, const double & tolparinv=1e-9,const int & maxiter=200,const  bool & geterrors=false){ 
+          else if (mmalg=="mmmv_ml") {
+            //List mmmv(const arma::mat & Y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W,const arma::mat & R,const double & tolparconv=1e-9, const double & tolparinv=1e-9,const int & maxiter=200,const  bool & geterrors=false){
             arma::mat Rmat=Rcpp::as<arma::mat>(R(0));
             outSAM=mmmv(Y,X,Zlist, Klist, W, Rmat,tolparconv,tolparinv,maxiter, geterrors,Hinv);
             
-          } 
+          }
         }
       }
     }
@@ -6471,17 +6619,17 @@ List  SAMM(const arma::mat & Y,const arma::mat & X, const Rcpp::List & Zlist, co
   
   ////################7
   
-  if (!univariate){
-    if (onekernel){
-      if (!corfunctions){
-        if (!(Rident && Wident)){
+  if (!univariate) {
+    if (onekernel) {
+      if (!corfunctions) {
+        if (!(Rident && Wident)) {
           //Rcpp::Rcout  << 10 << std::endl;
-          if (mmalg=="mmmv_ml"){
-            //List mmmv(const arma::mat & Y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W,const arma::mat & R,const double & tolparconv=1e-9, const double & tolparinv=1e-9,const int & maxiter=200,const  bool & geterrors=false){ 
+          if (mmalg=="mmmv_ml") {
+            //List mmmv(const arma::mat & Y,const arma::mat & X,const Rcpp::List & Zlist, const Rcpp::List & Klist, const arma::mat & W,const arma::mat & R,const double & tolparconv=1e-9, const double & tolparinv=1e-9,const int & maxiter=200,const  bool & geterrors=false){
             arma::mat Rmat=Rcpp::as<arma::mat>(R(0));
             outSAM=mmmv(Y,X,Zlist, Klist, W, Rmat,tolparconv,tolparinv,maxiter, geterrors,Hinv);
             
-          } 
+          }
         }
       }
     }
@@ -6491,49 +6639,30 @@ List  SAMM(const arma::mat & Y,const arma::mat & X, const Rcpp::List & Zlist, co
   
   ////################7
   
-  if (!univariate){
-    if (!onekernel){
-      if (!corfunctions){
-        if (!(Rident && Wident)){
+  if (!univariate) {
+    if (!onekernel) {
+      if (!corfunctions) {
+        if (!(Rident && Wident)) {
           //Rcpp::Rcout  << 11 << std::endl;
-          if (mmalg=="mmmkmv_ml"){
+          if (mmalg=="mmmkmv_ml") {
             arma::mat Rmat=Rcpp::as<arma::mat>(R(0));
             outSAM=mmmkmv(Y, X,Zlist, Klist, W,Rmat, tolparconv,tolparinv, maxiter, geterrors,Hinv);
-          } 
+          }
         }
       }
     }
   }
-  //////#########
   
-  ////################8
-  
-  if (!univariate){
-    if (!onekernel){
-      if (corfunctions){
-        //Rcpp::Rcout  << 12 << std::endl;
-        if (mmalg=="mmmkmv_ml"){
-          outSAM=mmmkmvcorfuncsigmafuncmvopt(Y, X,corfunc, corfuncfixed, sigfunc,Zlist, Klist, W,R,Siglist,tolparconv,tolparinv,maxiter, geterrors,Hinv);
-          
-        } 
-      }
-    }
-  }
-  ////################8
-  
-  if (!univariate){
-    if (onekernel){
-      if (corfunctions){
-        //   Rcpp::Rcout  << 12 << std::endl;
-        if (mmalg=="mmmkmv_ml"){
-          outSAM=mmmkmvcorfuncsigmafuncmvopt(Y, X,corfunc, corfuncfixed, sigfunc,Zlist, Klist, W,R,Siglist,tolparconv,tolparinv,maxiter, geterrors,Hinv);
-          
-        } 
+  if (!univariate) {
+    if (!corfunctions) {
+      if (mmalg=="mmmkmv_ml") {
+        arma::mat Rmat=Rcpp::as<arma::mat>(R(0));
+        outSAM=mmmkmv(Y, X,Zlist, Klist, W,Rmat, tolparconv,tolparinv, maxiter, geterrors,Hinv);
       }
     }
   }
   //////#########
-  
+  //////#########
   
   
   
@@ -6552,7 +6681,7 @@ List  SAMM(const arma::mat & Y,const arma::mat & X, const Rcpp::List & Zlist, co
 // [[Rcpp::depends("RcppArmadillo")]]
 // [[Rcpp::export]]
 
-arma::mat ar1cov_cppforR(const arma::vec & params, const arma::mat  & data){
+arma::mat ar1cov_cppforR(const arma::vec & params, const arma::mat  & data) {
   arma::vec times =linspace(1,data(0,0),data(0,0));
   double rho = (2/M_PI)*atan(params(0));
   arma::mat H = disteucarma(times, times);
@@ -6568,7 +6697,7 @@ arma::mat ar1cov_cppforR(const arma::vec & params, const arma::mat  & data){
 // [[Rcpp::depends("RcppArmadillo")]]
 // [[Rcpp::export]]
 
-arma::mat ar1hetcov_cppforR(const arma::vec & params, const arma::mat  & data){
+arma::mat ar1hetcov_cppforR(const arma::vec & params, const arma::mat  & data) {
   arma::vec times =linspace(1,data(0,0),data(0,0));
   double rho = (2/M_PI)*atan(params(0));
   arma::mat H = disteucarma(times, times);
@@ -6592,7 +6721,7 @@ arma::mat ar1hetcov_cppforR(const arma::vec & params, const arma::mat  & data){
 // [[Rcpp::depends("RcppArmadillo")]]
 // [[Rcpp::export]]
 
-arma::mat arma11cov_cppforR(const arma::vec & params, const arma::mat  & data){
+arma::mat arma11cov_cppforR(const arma::vec & params, const arma::mat  & data) {
   arma::vec times =linspace(1,data(0,0),data(0,0));
   double rho =(2/M_PI)*atan(params(0));
   double lambda =(2/M_PI)*atan(params(1));
@@ -6602,9 +6731,15 @@ arma::mat arma11cov_cppforR(const arma::vec & params, const arma::mat  & data){
   arma::mat V(data(0,0),data(0,0));
   for (int i = 0; i < data(0,0); i++) {
     for (int j = 0; j < data(0,0); j++) {
-      if (abs(i-j)>1){
+      if (abs(i-j)>1) {
         V(i,j)=lambda*powf(rho,H(i,j));
-      } else {if (i==j){V(i,j)=1;}else{V(i,j)=lambda;}}
+      } else {
+        if (i==j) {
+          V(i,j)=1;
+        } else {
+          V(i,j)=lambda;
+        }
+      }
     }
   }
   return V;
@@ -6613,7 +6748,7 @@ arma::mat arma11cov_cppforR(const arma::vec & params, const arma::mat  & data){
 // [[Rcpp::depends("RcppArmadillo")]]
 // [[Rcpp::export]]
 
-arma::mat compsymmcov_cppforR(const arma::vec & params, const arma::mat  & data){
+arma::mat compsymmcov_cppforR(const arma::vec & params, const arma::mat  & data) {
   double rho = (2/M_PI)*atan(params(0));
   int dim =data(0,0);
   arma::mat V=rho*ones(dim,dim);
@@ -6626,7 +6761,7 @@ arma::mat compsymmcov_cppforR(const arma::vec & params, const arma::mat  & data)
 // [[Rcpp::depends("RcppArmadillo")]]
 // [[Rcpp::export]]
 
-arma::mat compsymmhetcov_cppforR(const arma::vec & params, const arma::mat  & data){
+arma::mat compsymmhetcov_cppforR(const arma::vec & params, const arma::mat  & data) {
   double rho = (2/M_PI)*atan(params(0));
   int dim =data(0,0);
   arma::mat V=rho*ones(dim,dim);
@@ -6647,7 +6782,7 @@ arma::mat compsymmhetcov_cppforR(const arma::vec & params, const arma::mat  & da
 // [[Rcpp::depends("RcppArmadillo")]]
 // [[Rcpp::export]]
 
-arma::mat lincombcov_cppforR(const arma::vec & params, const arma::mat  & data){
+arma::mat lincombcov_cppforR(const arma::vec & params, const arma::mat  & data) {
   int k=params.n_elem;
   arma::vec weights=params-min(params);
   weights=weights/sum(weights);
@@ -6663,15 +6798,17 @@ arma::mat lincombcov_cppforR(const arma::vec & params, const arma::mat  & data){
 // [[Rcpp::depends("RcppArmadillo")]]
 // [[Rcpp::export]]
 
-arma::mat unstrcov_cppforR(const arma::vec & params, const arma::mat  & data){
+arma::mat unstrcov_cppforR(const arma::vec & params, const arma::mat  & data) {
   int d1=data(0,0);
   arma::mat D1(d1,d1);
   
   int ii=0;
   for (int i = 0; i < d1; i++) {
     for (int j = i; j < d1; j++) {
-      if (i==j){D1(i,j)=1;}
-      else{
+      if (i==j) {
+        D1(i,j)=1;
+      }
+      else {
         D1(i,j)=(2/M_PI)*atan(params(ii));
         D1(j,i)=(2/M_PI)*atan(params(ii));
         ii=ii+1;
@@ -6698,7 +6835,7 @@ arma::mat unstrcov_cppforR(const arma::vec & params, const arma::mat  & data){
 arma::mat diagcov_cppforR(const arma::vec & params, const arma::mat & data) {
   int k=params.n_elem;
   arma::vec v=ones(k+1);
-  for (int i = 1; i < (k+1); ++i){
+  for (int i = 1; i < (k+1); ++i) {
     v(i)=exp(params(i-1));
   }
   arma::mat V=diagmat(v);
@@ -6717,8 +6854,10 @@ arma::mat unstrKronKcov_cppforR(const arma::vec & params, const arma::mat & data
   int ii=0;
   for (int i = 0; i < d1; i++) {
     for (int j = i; j < d1; j++) {
-      if (i==j){D1(i,j)=1;}
-      else{
+      if (i==j) {
+        D1(i,j)=1;
+      }
+      else {
         D1(i,j)=(2/M_PI)*atan(params(ii));
         D1(j,i)=(2/M_PI)*atan(params(ii));
         ii=ii+1;
@@ -6826,8 +6965,10 @@ arma::mat UnstrKronUnstrcov_cppforR(const arma::vec & params, const arma::mat & 
   int ii=0;
   for (int i = 0; i < d1; i++) {
     for (int j = i; j < d1; j++) {
-      if (i==j){D1(i,j)=1;}
-      else{
+      if (i==j) {
+        D1(i,j)=1;
+      }
+      else {
         D1(i,j)=(2/M_PI)*atan(params(ii));
         D1(j,i)=(2/M_PI)*atan(params(ii));
         ii=ii+1;
@@ -6846,8 +6987,10 @@ arma::mat UnstrKronUnstrcov_cppforR(const arma::vec & params, const arma::mat & 
   
   for (int i = 0; i < d2; i++) {
     for (int j = i; j < d2; j++) {
-      if (i==j){D2(i,j)=1;}
-      else{
+      if (i==j) {
+        D2(i,j)=1;
+      }
+      else {
         D2(i,j)=(2/M_PI)*atan(params(ii));
         D2(j,i)=(2/M_PI)*atan(params(ii));
         ii=ii+1;
@@ -6874,7 +7017,7 @@ arma::mat UnstrKronUnstrcov_cppforR(const arma::vec & params, const arma::mat & 
 
 arma::mat rbfcov_cppforR(const arma::vec & params, const arma::mat & data) {
   arma::mat C=disteucarma(data,data);
-  return exp(-exp(params(0))*pow(C, 2)); 
+  return exp(-exp(params(0))*pow(C, 2));
 }
 
 
@@ -6883,7 +7026,7 @@ arma::mat rbfcov_cppforR(const arma::vec & params, const arma::mat & data) {
 
 arma::mat expcov_cppforR(const arma::vec & params, const arma::mat & data) {
   arma::mat C=disteucarma(data,data);
-  return exp(-(exp(params(0)))*C); 
+  return exp(-(exp(params(0)))*C);
 }
 
 
@@ -6891,14 +7034,14 @@ arma::mat expcov_cppforR(const arma::vec & params, const arma::mat & data) {
 // [[Rcpp::export]]
 
 arma::mat rbfdistcov_cppforR(const arma::vec & params, const arma::mat & data) {
-  return exp(-exp(params(0))*pow(data, 2)); 
+  return exp(-exp(params(0))*pow(data, 2));
 }
 
 
 // [[Rcpp::depends("RcppArmadillo")]]
 // [[Rcpp::export]]
 arma::mat expdistcov_cppforR(const arma::vec & params, const arma::mat & data) {
-  return exp(-(exp(params(0)))*data); 
+  return exp(-(exp(params(0)))*data);
 }
 
 
@@ -6908,7 +7051,7 @@ arma::mat expdistcov_cppforR(const arma::vec & params, const arma::mat & data) {
 arma::mat relmatcov_cppforR(const arma::vec & params, const arma::mat & data) {
   arma::vec pks(data.n_cols);
   double c=0;
-  for (int iter = 0; iter < data.n_cols; ++iter){
+  for (int iter = 0; iter < data.n_cols; ++iter) {
     pks(iter)=sum(data.col(iter)+ones(data.n_rows))/(2*data.n_rows);
     c=c+2*pks(iter)*(1-pks(iter));
   }
@@ -6935,8 +7078,10 @@ arma::mat KKronunstrcov_cppforR(const arma::vec & params, const arma::mat & data
   int ii=0;
   for (int i = 0; i < d1; i++) {
     for (int j = i; j < d1; j++) {
-      if (i==j){D1(i,j)=1;}
-      else{
+      if (i==j) {
+        D1(i,j)=1;
+      }
+      else {
         D1(i,j)=(2/M_PI)*atan(params(ii));
         D1(j,i)=(2/M_PI)*atan(params(ii));
         ii=ii+1;
@@ -7040,7 +7185,7 @@ arma::mat sppowcov_cppforR(const arma::vec & params, const arma::mat & data) {
       V(i,j)=pow(rho, data(i,j));
     }
   }
-  return V; 
+  return V;
 }
 
 
@@ -7051,12 +7196,14 @@ arma::mat splincov_cppforR(const arma::vec & params, const arma::mat & data) {
   arma::mat V(data.n_cols,data.n_cols);
   for (int i = 0; i < data.n_cols; i++) {
     for (int j = 0; j < data.n_cols; j++) {
-      if (rho*data(i,j)<=1){
+      if (rho*data(i,j)<=1) {
         V(i,j)=(1-rho*data(i,j));
-      } else {V(i,j)=0;}
+      } else {
+        V(i,j)=0;
+      }
     }
   }
-  return V; 
+  return V;
 }
 
 // [[Rcpp::depends("RcppArmadillo")]]
@@ -7066,12 +7213,14 @@ arma::mat splinlogcov_cppforR(const arma::vec & params, const arma::mat & data) 
   arma::mat V(data.n_cols,data.n_cols);
   for (int i = 0; i < data.n_cols; i++) {
     for (int j = 0; j < data.n_cols; j++) {
-      if (log(rho*data(i,j))<=1){
+      if (log(rho*data(i,j))<=1) {
         V(i,j)=(1-rho*log(data(i,j)));
-      } else {V(i,j)=0;}
+      } else {
+        V(i,j)=0;
+      }
     }
   }
-  return V; 
+  return V;
 }
 
 
@@ -7107,8 +7256,10 @@ arma::mat UnstrKronIdentSig_cppforR(const arma::vec & params, const arma::mat & 
   int ii=0;
   for (int i = 0; i < d1; i++) {
     for (int j = i; j < d1; j++) {
-      if (i==j){D1(i,j)=1;}
-      else{
+      if (i==j) {
+        D1(i,j)=1;
+      }
+      else {
         D1(i,j)=(2/M_PI)*atan(params(ii));
         D1(j,i)=(2/M_PI)*atan(params(ii));
         ii=ii+1;
@@ -7137,8 +7288,10 @@ arma::mat IdentKronUnstrSig_cppforR(const arma::vec & params, const arma::mat & 
   int ii=0;
   for (int i = 0; i < d2; i++) {
     for (int j = i; j < d2; j++) {
-      if (i==j){D2(i,j)=1;}
-      else{
+      if (i==j) {
+        D2(i,j)=1;
+      }
+      else {
         D2(i,j)=(2/M_PI)*atan(params(ii));
         D2(j,i)=(2/M_PI)*atan(params(ii));
         ii=ii+1;
@@ -7187,7 +7340,7 @@ arma::mat FA1homSig_cppforR(const arma::vec & params, const arma::mat & data) {
 // [[Rcpp::depends("RcppArmadillo")]]
 // [[Rcpp::export]]
 
-arma::mat compsymmhomSig_cppforR(const arma::vec & params, const arma::mat  & data){
+arma::mat compsymmhomSig_cppforR(const arma::vec & params, const arma::mat  & data) {
   double sigma = exp(params(0));
   double rho = (2/M_PI)*atan(params(1));
   int dim =as_scalar(data);
@@ -7202,7 +7355,7 @@ arma::mat compsymmhomSig_cppforR(const arma::vec & params, const arma::mat  & da
 // [[Rcpp::depends("RcppArmadillo")]]
 // [[Rcpp::export]]
 
-arma::mat compsymmhetSig_cppforR(const arma::vec & params, const arma::mat  & data){
+arma::mat compsymmhetSig_cppforR(const arma::vec & params, const arma::mat  & data) {
   double rho = (2/M_PI)*atan(params(0));
   int dim =as_scalar(data);
   arma::mat V=rho*ones(dim,dim);
@@ -7217,7 +7370,7 @@ arma::mat compsymmhetSig_cppforR(const arma::vec & params, const arma::mat  & da
 // [[Rcpp::depends("RcppArmadillo")]]
 // [[Rcpp::export]]
 
-arma::mat FAhetSig_cppforR(const arma::vec & params, const arma::mat  & data){
+arma::mat FAhetSig_cppforR(const arma::vec & params, const arma::mat  & data) {
   arma::mat Lambda=zeros(data(0,0),data(0,1));
   int ii=0;
   for (int i = 0; i < data(0,1); i++) {
@@ -7239,7 +7392,7 @@ arma::mat FAhetSig_cppforR(const arma::vec & params, const arma::mat  & data){
 // [[Rcpp::depends("RcppArmadillo")]]
 // [[Rcpp::export]]
 
-arma::mat FAhomSig_cppforR(const arma::vec & params, const arma::mat  & data){
+arma::mat FAhomSig_cppforR(const arma::vec & params, const arma::mat  & data) {
   arma::mat Lambda=zeros(data(0,0),data(0,1));
   int ii=0;
   for (int i = 0; i < data(0,1); i++) {

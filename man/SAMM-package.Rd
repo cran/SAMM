@@ -13,7 +13,7 @@
 The DESCRIPTION file:
 \packageDESCRIPTION{SAMM}
 \packageIndices{SAMM}
- This program can be used to fit Gaussian linear mixed models (LMM). Univariate and multivariate response models, multiple variance components, as well as, certain correlation and covariance structures are supported. In many occations, the user can pick one of the several mixed model fitting algorithms, which are explained further in the details section. Some algorithms are specific to certain types of models (univariate or multivariate, diagonal or nondiagonal residual, one or multiple variance components, etc,...). IMPORTANT NOTE: USE SAMM WITH CAUTION, AND AT YOUR OWN RISK. NO GUARANTIES. PLEASE REPORT BUGS AND RECOMMENDATIONS TO THE MAINTAINER.
+ This program can be used to fit Gaussian linear mixed models (LMM). Univariate and multivariate response models, multiple variance components, as well as, certain correlation and covariance structures are supported. In many occations, the user can pick one of the several mixed model fitting algorithms, which are explained further in the details section. Some algorithms are specific to certain types of models (univariate or multivariate, diagonal or nondiagonal residual, one or multiple variance components, etc,...).
 
 }
 \author{
@@ -34,4 +34,10 @@ Gilmour, Arthur R., Robin Thompson, and Brian R. Cullis. "Average information RE
 
 
 }
-
+\keyword{ package }
+\seealso{
+~~ Optional links to other man pages, e.g. ~~
+}
+\examples{
+x=2
+}

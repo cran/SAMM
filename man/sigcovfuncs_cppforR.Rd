@@ -45,7 +45,7 @@
 
 \title{Covariance and Sigma Functions}
 \description{
-The "concordance" functions end with "cov_cppforR" and sigma functions end with "Sig_cppforR". Check table below and the examples for details and usage. Documentation for some of these functions is missing. Let \eqn{K} be a given covariance matrix, \eqn{D} be a given Euclidean distance matrix, let \eqn{q} be the dimension of desired sigma or covariance matrices. 
+The "kernel" functions end with "cov_cppforR" and sigma functions end with "Sig_cppforR". Check table below and the examples for details and usage. Documentation for some of these functions is missing. Let \eqn{K} be a given covariance matrix, \eqn{D} be a given Euclidean distance matrix, let \eqn{q} be the dimension of desired sigma or covariance matrices. 
 }
 
 \arguments{
@@ -54,7 +54,7 @@ The "concordance" functions end with "cov_cppforR" and sigma functions end with 
   
 }
 \value{
-A concordance or sigma matrix. 
+A kernel or sigma matrix. 
 }
 \details{
 \tabular{rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr}{
