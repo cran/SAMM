@@ -1,3 +1,4 @@
 useDynLib(SAMM, .registration=TRUE)
 importFrom(Rcpp, evalCpp)
+importFrom("stats", "pchisq", "pnorm")
 exportPattern("^[[:alpha:]]+")

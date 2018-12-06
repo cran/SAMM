@@ -1,7 +1,7 @@
 Package: SAMM
 Type: Package
 Title: Some Algorithms for Mixed Models
-Version: 1.1
+Version: 1.1.1
 Date: 2018-11-22
 Author: Deniz Akdemir
 Maintainer: Deniz Akdemir <deniz.akdemir.work@gmail.com>
@@ -10,6 +10,6 @@ License: GPL-3
 Imports: Rcpp (>= 0.12.4)
 LinkingTo: Rcpp, RcppArmadillo
 NeedsCompilation: yes
-Packaged: 2018-11-25 04:26:01 UTC; denizakdemir
+Packaged: 2018-12-05 18:33:35 UTC; deniz
 Repository: CRAN
-Date/Publication: 2018-11-26 15:50:02 UTC
+Date/Publication: 2018-12-06 16:30:02 UTC

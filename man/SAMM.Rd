@@ -32,10 +32,10 @@ SAMM(Y, X, Zlist, Klist, lambda, W, R, Siglist, corfunc,
   \item{geterrors}{TRUE or FALSE, if true prediction error variances for the random effects are supplied in the output}
 \item{Hinv}{TRUE or FALSE, if TRUE the inverse of the}
 }
-\value{bla bla
+\value{This might change with respect to the algorithm or analysis.
 }
 \details{
-bla bla
+This might change with respect to the algorithm or analysis.
 }
 
 \examples{
@@ -46,7 +46,7 @@ library(SAMM)
 n=120
 ntrain=100
 M1<-matrix(rbinom(n*180,2,.3)-1, nrow=n)
-K<-RelMatcov_cppforR(c(0), M1)
+K<-relmatcov_cppforR(c(0), M1)
 K[1:5,1:5]
 det(K)
 K=K+1e-3*diag(n)
@@ -219,7 +219,7 @@ samout7$Vu
 samout8$Vu
 samout9$Vu
 samout10$Vu
-samout11$Vgt
+samout11$Vu
 
 samout12$Vu
 samout13$Vu
@@ -240,31 +240,6 @@ str(samout22)
 
 
 
-#samout23<-SAMM(Y=matrix(y,ncol=1),X=X, Zlist=list(Z), 
-Klist=list(list("Diag",rep(0,n-1),matrix(n,1,1))), 
-lambda=0, W=diag(ntrain),R=list(R),Siglist=list(), corfunc=c(T,F),
-corfuncfixed=c(F,F), sigfunc=c(F),mmalg="dmm_reml",
-tolparconv=1e-10, tolparinv=1e-10,maxiter=1000,geterrors=F)
-
-#samout24<-SAMM(Y=matrix(y,ncol=1),X=X, Zlist=list(Z),
-Klist=list(list("Diag",rep(0,n-1),matrix(n,1,1))), lambda=0,
-W=diag(ntrain),R=list(R),Siglist=list(), corfunc=c(T,F), 
-corfuncfixed=c(F,F), sigfunc=c(F),mmalg="mmmk_ml",
-tolparconv=1e-10, tolparinv=1e-10,maxiter=1000,geterrors=F)
-
-#samout25<-SAMM(Y=matrix(y,ncol=1),X=X, Zlist=list(Z), 
-Klist=list(list("ar1het",rep(0,n),matrix(n,1,1))), lambda=0,
-W=diag(ntrain),R=list(R),Siglist=list(), corfunc=c(T,F),
-corfuncfixed=c(F,F), sigfunc=c(F),mmalg="mmmk_ml", 
-tolparconv=1e-10, tolparinv=1e-10,maxiter=1000,geterrors=F)
-
-###takes too long
-#samout26<-SAMM(Y=matrix(y,ncol=1),X=X, Zlist=list(Z),
-Klist=list(list("ar1het",rep(0,n),matrix(n,1,1))),
-lambda=0, W=diag(ntrain),R=list(R),Siglist=list("",""),
-corfunc=c(T,F), corfuncfixed=c(F,F), sigfunc=c(F,F),
-mmalg="mmmkmv_ml", tolparconv=1e-7,
-tolparinv=1e-10,maxiter=500,geterrors=F)
 
 ###
 
@@ -296,10 +271,6 @@ str(samout19)
 str(samout20)
 str(samout21)
 str(samout22)
-#str(samout23)
-#str(samout24)
-#str(samout25)
-#str(samout26)
 
 
 
@@ -312,10 +283,10 @@ rhotrans=5
 rho=tan((pi/2)*print((2/pi)*atan(rhotrans)))
 rho
 M1<-matrix(rbinom(n*300, 2, .2)-1, nrow=n)
-K1<-RelMatcov_cppforR(c(.01), M1)
+K1<-relmatcov_cppforR(c(.01), M1)
 
 M2<-matrix(rbinom(n*300, 2, .2)-1, nrow=n)
-K2<-RelMatcov_cppforR(c(-0.3), M2)
+K2<-relmatcov_cppforR(c(-0.3), M2)
 ##K2<-ar1_cppforR(c(20), matrix(n))
 W=(diag(5)[sample(1:5,n, replace=T),])
 covY<-3*K1+5*K2+10*(W\%*\%ar1cov_cppforR(c(rhotrans),matrix(5))\%*\%t(W))
@@ -342,13 +313,6 @@ corfuncfixed=c(F,F,F), sigfunc=c(F,F,F),mmalg="mmmk_ml",
 tolparconv=1e-10, tolparinv=1e-10,maxiter=1000,geterrors=F)
 str(samout27)
 
-samout28<-SAMM(Y=matrix(ytrain,ncol=1),X=Xtrain,
-Zlist=list(Ztrain, Ztrain), Klist=list(K1,K2), lambda=0, 
-W=Wtrain,R=list(list("ar1",c(0),matrix(5,1,1))),Siglist=list("","",""),
-corfunc=c(F,F,T), corfuncfixed=c(F,F,F), sigfunc=c(F,F,F),
-mmalg="mmmkmv_ml", tolparconv=1e-10, tolparinv=1e-10,
-maxiter=1000,geterrors=F)
-str(samout28)
 
 samout29<-SAMM(Y=matrix(ytrain,ncol=1),X=Xtrain,
 Zlist=list(Ztrain, Ztrain), Klist=list(K1,K2),
@@ -368,68 +332,18 @@ sigfunc=c(F,F,F),mmalg="dermm_reml2", tolparconv=1e-10,
 tolparinv=1e-10,maxiter=1000,geterrors=F)
 str(samout30)
 
-###########################
-
-###Data:
-
-
-
-n=100
-nsample=90
-
-M1<-matrix(rbinom(n*300, 2, .2)-1, nrow=n)
-K1<-RelMatcov_cppforR(c(.1), M1)
-Sigma1=ar1cov_cppforR(c(5),matrix(3))
-Sigma2=ar1cov_cppforR(c(-2),matrix(3))
-W=(diag(5)[sample(1:5,n, replace=T),])
-K2=(W\%*\%ar1cov_cppforR(c(-3),matrix(5))\%*\%t(W))
-
-covY<-5*kronecker(Sigma1,K1)+10*kronecker(Sigma2,K2)
-
-Y<-10+crossprod(chol(covY),rnorm(n*3))
-Y<-matrix(Y, ncol=3)
-
-
-samout31<-SAMM(Y=Y,X=matrix(1,n,1), Zlist=list(diag(n)),
-Klist=list(K1), lambda=0, W=W,R=list(list("ar1",c(0),matrix(5,1,1))),
-Siglist=list("",""), corfunc=c(F,T), corfuncfixed=c(F,F), sigfunc=c(F,F),
-mmalg="mmmkmv_ml", tolparconv=1e-10,
-tolparinv=1e-10,maxiter=1000,geterrors=F)
-str(samout31)
-
-samout32<-SAMM(Y=Y,X=matrix(1,n,1), Zlist=list(diag(n)),
-Klist=list(K1), lambda=0, W=W,R=list(list("ar1",c(0),matrix(5,1,1))),
-Siglist=list("",list("diag",c(0,0,0),matrix(3,1,1))),
-corfunc=c(F,T), corfuncfixed=c(F,F), 
-sigfunc=c(F,T),mmalg="mmmkmv_ml", tolparconv=1e-10,
-tolparinv=1e-10,maxiter=1000,geterrors=F)
-str(samout32)
-
-samout33<-SAMM(Y=Y,X=matrix(1,n,1), Zlist=list(diag(n)),
-Klist=list(K1), lambda=0, W=W,R=list(list("ar1",c(0),matrix(5,1,1))),
-Siglist=list("",list("Ident",c(0),matrix(3,1,1))), corfunc=c(F,T),
-corfuncfixed=c(F,F), sigfunc=c(F,T),mmalg="mmmkmv_ml",
-tolparconv=1e-10, tolparinv=1e-10,maxiter=1000,geterrors=F)
-str(samout33)
-#samout34<-SAMM(Y=Y,X=matrix(1,n,1), Zlist=list(diag(n)),
-Klist=list(K1), lambda=0, W=W,R=list(list("ar1",c(0),matrix(5,1,1))),
-Siglist=list("",list("FA1hom",c(0,0,0),matrix(3,1,1))),
-corfunc=c(F,T), corfuncfixed=c(F,F), sigfunc=c(F,T),
-mmalg="mmmkmv_ml", tolparconv=1e-10, tolparinv=1e-10,maxiter=1000,geterrors=F)
-#str(samout34)
-
 
 ###########################
 
 n=100
 M1<-matrix(rbinom(n*150, 2, .2)-1, nrow=n)
-K1<-RelMatcov_cppforR(c(0), M1)
+K1<-relmatcov_cppforR(c(0), M1)
 M2<-matrix(rbinom(n*150, 2, .2)-1, nrow=n)
-K2<-RelMatcov_cppforR(c(0), M2)
+K2<-relmatcov_cppforR(c(0), M2)
 M3<-matrix(rbinom(n*100, 2, .2)-1, nrow=n)
-K3<-RelMatcov_cppforR(c(0), M3)
+K3<-relmatcov_cppforR(c(0), M3)
 M4<-matrix(rbinom(n*100, 2, .2)-1, nrow=n)
-K4<-RelMatcov_cppforR(c(0), M4)
+K4<-relmatcov_cppforR(c(0), M4)
 
 
 covY<-2*K1+3*K2+1*K3+2*K4+3*diag(n)
@@ -486,13 +400,12 @@ maxmat<-max(c(outmat))
 minmat<-min(c(outmat))
 
 plot(seq(0,.999999, length=30),outmat[1,],
-ylim=c(minmat-1, maxmat+1), col=2, type="b")
+ylim=c(minmat-1, maxmat+1), col=2, type="l")
 for (i in 2:5){
   par(new=T)
   plot(seq(0,.999999, length=30), outmat[i,],
-  axes=F, ylim=c(minmat-1, maxmat+1), col=i+1, type="b", xlab="", ylab="")
+  axes=F, ylim=c(minmat-1, maxmat+1), col=i+1, type="l", xlab="", ylab="")
 }
-
 
 } 
 }
